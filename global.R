@@ -5,40 +5,42 @@
 library(shiny)
 library(shinydashboard)
 library(DT)
-library(plotly)
-library(ggplot2)
-library(dplyr)
-library(readr)
-library(nortest)
-library(car)
-library(lmtest)
-library(moments)
-library(knitr)
-library(rmarkdown)
-library(officer)
-library(flextable)
-library(forecast) # Library PENTING untuk transformasi Box-Cox
-library(leaflet)
-library(sf)
-library(geojsonio)
-library(RColorBrewer)
-library(htmltools)
-library(gridExtra)
-library(grid)
-library(png)
-library(webshot)
+if (requireNamespace("plotly", quietly = TRUE)) {
+  library(plotly)
+}
+if (requireNamespace("ggplot2", quietly = TRUE)) library(ggplot2)
+if (requireNamespace("dplyr", quietly = TRUE)) library(dplyr)
+if (requireNamespace("readr", quietly = TRUE)) library(readr)
+if (requireNamespace("nortest", quietly = TRUE)) library(nortest)
+if (requireNamespace("car", quietly = TRUE)) library(car)
+if (requireNamespace("lmtest", quietly = TRUE)) library(lmtest)
+if (requireNamespace("moments", quietly = TRUE)) library(moments)
+if (requireNamespace("knitr", quietly = TRUE)) library(knitr)
+if (requireNamespace("rmarkdown", quietly = TRUE)) library(rmarkdown)
+if (requireNamespace("officer", quietly = TRUE)) library(officer)
+if (requireNamespace("flextable", quietly = TRUE)) library(flextable)
+if (requireNamespace("forecast", quietly = TRUE)) library(forecast) # Library PENTING untuk transformasi Box-Cox
+if (requireNamespace("leaflet", quietly = TRUE)) library(leaflet)
+if (requireNamespace("sf", quietly = TRUE)) library(sf)
+if (requireNamespace("geojsonio", quietly = TRUE)) library(geojsonio)
+if (requireNamespace("RColorBrewer", quietly = TRUE)) library(RColorBrewer)
+if (requireNamespace("htmltools", quietly = TRUE)) library(htmltools)
+if (requireNamespace("gridExtra", quietly = TRUE)) library(gridExtra)
+if (requireNamespace("grid", quietly = TRUE)) library(grid)
+if (requireNamespace("png", quietly = TRUE)) library(png)
+if (requireNamespace("webshot", quietly = TRUE)) library(webshot)
 # Additional libraries for comprehensive PDF reports
-library(ggpubr)
-library(corrplot)
-library(VIM)
-library(Hmisc)
-library(psych)
-library(cowplot)
-library(scales)
-library(viridis)
-library(patchwork)
-library(broom)
-library(MASS)
+if (requireNamespace("ggpubr", quietly = TRUE)) library(ggpubr)
+if (requireNamespace("corrplot", quietly = TRUE)) library(corrplot)
+if (requireNamespace("VIM", quietly = TRUE)) library(VIM)
+if (requireNamespace("Hmisc", quietly = TRUE)) library(Hmisc)
+if (requireNamespace("psych", quietly = TRUE)) library(psych)
+if (requireNamespace("cowplot", quietly = TRUE)) library(cowplot)
+if (requireNamespace("scales", quietly = TRUE)) library(scales)
+if (requireNamespace("viridis", quietly = TRUE)) library(viridis)
+if (requireNamespace("patchwork", quietly = TRUE)) library(patchwork)
+if (requireNamespace("broom", quietly = TRUE)) library(broom)
+if (requireNamespace("MASS", quietly = TRUE)) library(MASS)
 
 # Set global options
 options(shiny.maxRequestSize = 50*1024^2)  # 50MB max file size
@@ -89,8 +91,10 @@ theme_publication <- function() {
     )
 }
 
-# Set default theme
-theme_set(theme_axis())
+# Set default theme if ggplot2 is available
+if (requireNamespace("ggplot2", quietly = TRUE)) {
+  theme_set(theme_axis())
+}
 
 # Color palette for plots
 axis_colors <- c("#3c8dbc", "#28a745", "#ffc107", "#dc3545", "#6f42c1", "#fd7e14")
@@ -793,173 +797,6 @@ create_advanced_statistical_report <- function(content_list, title, data = NULL)
   
   return(html_template)
 }
-    
-    # Professional content structure
-    professional_content <- c(
-      yaml_header,
-      "",
-      "\\newpage",
-      "",
-      "# Ringkasan Eksekutif {.unnumbered}",
-      "",
-      "<div class='alert-info'>",
-      "<strong>Ringkasan Analisis:</strong> Laporan ini menyajikan analisis statistik komprehensif yang dihasilkan oleh AXIS Dashboard. Analisis meliputi eksplorasi data, uji asumsi statistik, pemodelan regresi, dan interpretasi hasil dengan pendekatan berbasis bukti ilmiah.",
-      "</div>",
-      "",
-      paste("**Periode Analisis:** ", format(Sys.Date(), "%d %B %Y")),
-      paste("**Sistem Generator:** AXIS Dashboard - Advanced Statistical Analysis"),
-      paste("**Waktu Pembuatan:** ", format(Sys.time(), "%H:%M:%S %Z")),
-      "",
-      "## Temuan Kunci",
-      "",
-      "<div class='key-findings'>",
-      "• Analisis data telah dilakukan dengan menggunakan metodologi statistik terkini<br>",
-      "• Semua asumsi statistik telah diverifikasi sebelum analisis inferensial<br>", 
-      "• Interpretasi hasil disajikan dengan konteks praktis dan signifikansi statistik<br>",
-      "• Rekomendasi berbasis data telah diformulasikan untuk pengambilan keputusan",
-      "</div>",
-      "",
-      "\\newpage",
-      "",
-      paste(content_list, collapse = "\n"),
-      "",
-      "",
-      "\\newpage",
-      "",
-      "# Metodologi Analisis Statistik",
-      "",
-      "## Pendekatan Analitik",
-      "",
-      "<div class='interpretation'>",
-      "Analisis dalam laporan ini menggunakan pendekatan **statistik inferensial** yang mencakup:",
-      "",
-      "1. **Analisis Deskriptif**: Eksplorasi karakteristik data menggunakan ukuran tendensi sentral dan dispersi",
-      "2. **Uji Asumsi**: Verifikasi normalitas, homoskedastisitas, dan independensi residual", 
-      "3. **Analisis Inferensial**: Uji hipotesis, analisis varians, dan pemodelan regresi",
-      "4. **Interpretasi Praktis**: Konversi temuan statistik menjadi insight yang actionable",
-      "</div>",
-      "",
-      "## Standar Signifikansi",
-      "",
-      "- **α = 0.05**: Tingkat signifikansi untuk uji hipotesis",
-      "- **Confidence Intervals**: 95% untuk estimasi parameter",
-      "- **Effect Size**: Interpretasi menggunakan Cohen's conventions",
-      "- **Power Analysis**: Evaluasi kekuatan uji statistik",
-      "",
-      "## Asumsi Statistik",
-      "",
-      "<div class='statistical-summary'>",
-      "**Verifikasi Asumsi Model:**",
-      "",
-      "• **Normalitas**: Shapiro-Wilk test dan Q-Q plot analysis<br>",
-      "• **Homoskedastisitas**: Breusch-Pagan test dan residual plot<br>",
-      "• **Linearitas**: Scatterplot dan partial regression plots<br>",
-      "• **Independensi**: Durbin-Watson test untuk autokorelasi",
-      "</div>",
-      "",
-      "\\newpage",
-      "",
-      "# Interpretasi Statistik dan Rekomendasi",
-      "",
-      "## Signifikansi Praktis vs Statistik",
-      "",
-      "<div class='interpretation'>",
-      "**Penting untuk membedakan** antara signifikansi statistik dan signifikansi praktis:",
-      "",
-      "- **Signifikansi Statistik** (p < 0.05): Menunjukkan bahwa hasil tidak terjadi secara kebetulan",
-      "- **Signifikansi Praktis**: Menunjukkan bahwa hasil memiliki dampak meaningful dalam konteks nyata",
-      "- **Effect Size**: Mengukur besaran dampak, bukan hanya keberadaan dampak",
-      "</div>",
-      "",
-      "## Interpretasi Confidence Intervals",
-      "",
-      "Confidence Interval (CI) 95% memberikan rentang nilai yang **plausible** untuk parameter populasi:",
-      "",
-      "- CI yang tidak mencakup nilai null hypothesis mengindikasikan signifikansi statistik",
-      "- Lebar CI menunjukkan presisi estimasi (CI sempit = estimasi presisi tinggi)", 
-      "- Interpretasi: \"Kita 95% yakin bahwa nilai parameter populasi berada dalam rentang ini\"",
-      "",
-      "## Guidelines Interpretasi Effect Size",
-      "",
-      "```{r effect-size-table, echo=FALSE}",
-      "effect_size_guide <- data.frame(",
-      "  'Ukuran Efek' = c('Cohen\\'s d', 'Eta Squared (η²)', 'R-squared (R²)', 'Odds Ratio'),",
-      "  'Kecil' = c('0.2', '0.01', '0.02', '1.5'),",
-      "  'Sedang' = c('0.5', '0.06', '0.13', '3.5'),", 
-      "  'Besar' = c('0.8', '0.14', '0.26', '9.0'),",
-      "  stringsAsFactors = FALSE",
-      ")",
-      "knitr::kable(effect_size_guide, caption = 'Panduan Interpretasi Ukuran Efek (Cohen\\'s Conventions)')",
-      "```",
-      "",
-      "## Rekomendasi Berbasis Data",
-      "",
-      "<div class='key-findings'>",
-      "**Langkah Selanjutnya:**",
-      "",
-      "1. **Validasi Temuan**: Replikasi analisis dengan data independen jika memungkinkan",
-      "2. **Analisis Lanjutan**: Investigasi faktor confounding dan variabel mediator",
-      "3. **Implementasi**: Terjemahkan temuan statistik menjadi tindakan konkret",
-      "4. **Monitoring**: Establish metrics untuk tracking efektivitas intervensi",
-      "</div>",
-      "",
-      "---",
-      "",
-      "**Catatan Metodologis:** Laporan ini mengikuti standar APA untuk pelaporan statistik dan menggunakan best practices dalam analisis data observasional. Semua asumsi model telah diverifikasi dan limitasi analisis telah didokumentasikan.",
-      "",
-      "**Contact:** Untuk pertanyaan metodologis atau interpretasi lanjutan, hubungi tim AXIS Dashboard Analytics.",
-      "",
-      "---",
-      "",
-      "*Diproduksi oleh AXIS Dashboard - Advanced eXploratory & Inferential Statistics*"
-    )
-    
-    # Combine all content
-    full_content <- professional_content
-    
-    # Write to temporary file
-    writeLines(full_content, temp_rmd)
-    
-    # Try multiple rendering approaches
-    pdf_created <- FALSE
-    
-    # Method 1: Try rmarkdown::render
-    tryCatch({
-      rmarkdown::render(
-        input = temp_rmd,
-        output_format = "html_document",
-        output_file = filename,
-        quiet = TRUE,
-        envir = new.env()
-      )
-      
-      if (file.exists(filename) && file.size(filename) > 1000) {
-        pdf_created <- TRUE
-      }
-    }, error = function(e) {
-      # Continue to fallback
-    })
-    
-    # Method 2: Fallback to simple professional HTML
-    if (!pdf_created) {
-      professional_html <- create_professional_html_report(content_list, title)
-      writeLines(professional_html, filename)
-      pdf_created <- TRUE
-    }
-    
-    # Clean up
-    unlink(temp_rmd)
-    
-    if (pdf_created && file.exists(filename)) {
-      return("Success")
-    } else {
-      return("Error: Could not create professional report")
-    }
-    
-  }, error = function(e) {
-    return(paste("Error creating professional report:", e$message))
-  })
-}
 
 # Helper function for professional HTML report
 create_professional_html_report <- function(content_list, title) {
@@ -1622,8 +1459,7 @@ generate_executive_summary <- function(data, analysis_type = "Analisis Statistik
     "</ol>",
     "</div>",
     "",
-    "</div>"
-    "4. **Pengujian Hipotesis:** Verifikasi asumsi dan pengujian signifikansi statistik",
+    "</div>",
     "",
     "\\newpage",
     ""
