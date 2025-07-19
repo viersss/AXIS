@@ -2762,7 +2762,7 @@ server <- function(input, output, session) {
         } else {
           # The file is now HTML but will be downloaded with PDF extension
           # This allows browser to handle it properly for printing to PDF
-          safe_notification("Laporan telah berhasil dibuat! File berisi konten yang dapat dicetak sebagai PDF.", "success")
+          safe_notification("Laporan Analisis Statistik Profesional berhasil dibuat! File dapat dicetak sebagai PDF dengan Ctrl+P.", "success")
         }
       }
     }
