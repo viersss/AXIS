@@ -1,0 +1,945 @@
+---
+title: "Laporan Eksplorasi Variabel Komprehensif"
+subtitle: "AXIS Dashboard - Advanced Statistical Analysis System"
+author: "AXIS Analytics Team"
+date: "`r format(Sys.Date(), '%d %B %Y')`"
+output: 
+  pdf_document:
+    toc: true
+    toc_depth: 3
+    number_sections: true
+    latex_engine: xelatex
+    keep_tex: false
+    fig_caption: true
+    fig_width: 10
+    fig_height: 7
+    includes:
+      in_header: 
+params:
+  data_path: "data.csv"
+  selected_variable: "variable_name"
+  analysis_date: !r Sys.Date()
+geometry: margin=1in
+fontsize: 11pt
+header-includes:
+  - \usepackage{booktabs}
+  - \usepackage{longtable}
+  - \usepackage{array}
+  - \usepackage{multirow}
+  - \usepackage{wrapfig}
+  - \usepackage{float}
+  - \usepackage{colortbl}
+  - \usepackage{pdflscape}
+  - \usepackage{tabu}
+  - \usepackage{threeparttable}
+  - \usepackage{threeparttablex}
+  - \usepackage[normalem]{ulem}
+  - \usepackage{makecell}
+  - \usepackage{xcolor}
+  - \definecolor{primaryblue}{RGB}{46,134,171}
+  - \definecolor{secondarypurple}{RGB}{162,59,114}
+  - \definecolor{accentorange}{RGB}{241,143,1}
+  - \definecolor{successgreen}{RGB}{78,128,152}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE, 
+  warning = FALSE, 
+  message = FALSE,
+  fig.align = 'center',
+  fig.pos = 'H',
+  out.width = '100%'
+)
+
+# Load required libraries
+library(knitr)
+library(dplyr)
+library(ggplot2)
+library(moments)
+library(nortest)
+library(car)
+library(psych)
+library(gridExtra)
+library(kableExtra)
+library(ggpubr)
+
+# Read data
+if (file.exists(params$data_path)) {
+  data <- read.csv(params$data_path, fileEncoding = "UTF-8", check.names = FALSE)
+} else {
+  stop("Data file not found!")
+}
+
+# Get selected variable
+selected_var <- params$selected_variable
+if (!selected_var %in% names(data)) {
+  # Fallback: take first numeric variable
+  numeric_vars <- names(data)[sapply(data, is.numeric)]
+  if (length(numeric_vars) > 0) {
+    selected_var <- numeric_vars[1]
+  } else {
+    stop("No numeric variables found in dataset!")
+  }
+}
+
+# Extract variable data
+var_data <- data[[selected_var]]
+var_data_clean <- var_data[!is.na(var_data)]
+
+# Check if variable is numeric
+is_numeric_var <- is.numeric(var_data)
+
+# Custom theme for plots
+theme_axis_exploration <- function() {
+  theme_minimal() +
+    theme(
+      plot.title = element_text(size = 16, face = "bold", hjust = 0.5, color = "#2E86AB"),
+      plot.subtitle = element_text(size = 13, hjust = 0.5, color = "#666666", margin = margin(b = 20)),
+      axis.title = element_text(size = 12, face = "bold"),
+      axis.text = element_text(size = 11),
+      legend.title = element_text(size = 12, face = "bold"),
+      legend.text = element_text(size = 11),
+      panel.grid.minor = element_blank(),
+      panel.border = element_rect(fill = NA, color = "gray90"),
+      strip.background = element_rect(fill = "gray95", color = "gray90"),
+      strip.text = element_text(size = 12, face = "bold"),
+      plot.margin = margin(25, 25, 25, 25)
+    )
+}
+
+# Set theme
+theme_set(theme_axis_exploration())
+
+# Color palette
+axis_colors <- c("#2E86AB", "#A23B72", "#F18F01", "#C73E1D", "#4E8098", "#90A959")
+```
+
+\newpage
+
+# Ringkasan Eksekutif Eksplorasi
+
+```{r executive-summary}
+# Calculate summary statistics
+if (is_numeric_var && length(var_data_clean) > 0) {
+  var_summary <- list(
+    n_total = length(var_data),
+    n_valid = length(var_data_clean),
+    n_missing = sum(is.na(var_data)),
+    missing_pct = round(sum(is.na(var_data)) / length(var_data) * 100, 2),
+    mean_val = round(mean(var_data_clean), 4),
+    median_val = round(median(var_data_clean), 4),
+    sd_val = round(sd(var_data_clean), 4),
+    min_val = round(min(var_data_clean), 4),
+    max_val = round(max(var_data_clean), 4),
+    skew_val = round(skewness(var_data_clean), 4),
+    kurt_val = round(kurtosis(var_data_clean), 4)
+  )
+  
+  # Interpretations
+  normality_status <- ifelse(abs(var_summary$skew_val) < 0.5 & 
+                            var_summary$kurt_val > 2 & var_summary$kurt_val < 4,
+                            "Normal", "Non-Normal")
+  
+  variability_level <- ifelse(var_summary$sd_val / abs(var_summary$mean_val) < 0.15, "Low",
+                             ifelse(var_summary$sd_val / abs(var_summary$mean_val) < 0.35, "Moderate", "High"))
+} else {
+  # For categorical variables
+  var_summary <- list(
+    n_total = length(var_data),
+    n_valid = sum(!is.na(var_data)),
+    n_missing = sum(is.na(var_data)),
+    missing_pct = round(sum(is.na(var_data)) / length(var_data) * 100, 2),
+    unique_values = length(unique(var_data[!is.na(var_data)]))
+  )
+}
+```
+
+\begin{center}
+\colorbox{primaryblue!10}{
+\begin{minipage}{0.9\textwidth}
+\centering
+\textbf{\large Analisis Mendalam Variabel: \texttt{`r selected_var`}} \\
+\vspace{0.3cm}
+Laporan ini menyajikan eksplorasi komprehensif karakteristik, distribusi, dan sifat statistik dari variabel terpilih dengan menggunakan metodologi analisis univariat yang canggih.
+\end{minipage}
+}
+\end{center}
+
+## Profil Variabel
+
+```{r variable-profile}
+if (is_numeric_var) {
+  profile_data <- data.frame(
+    "Karakteristik" = c("Jenis Variabel", "Total Observasi", "Data Valid", "Missing Data", 
+                        "% Missing", "Distribusi", "Variabilitas"),
+    "Nilai" = c("Numerik", 
+                format(var_summary$n_total, big.mark = ","),
+                format(var_summary$n_valid, big.mark = ","),
+                format(var_summary$n_missing, big.mark = ","),
+                paste0(var_summary$missing_pct, "%"),
+                normality_status,
+                variability_level)
+  )
+} else {
+  profile_data <- data.frame(
+    "Karakteristik" = c("Jenis Variabel", "Total Observasi", "Data Valid", "Missing Data", 
+                        "% Missing", "Unique Values"),
+    "Nilai" = c("Kategorikal", 
+                format(var_summary$n_total, big.mark = ","),
+                format(var_summary$n_valid, big.mark = ","),
+                format(var_summary$n_missing, big.mark = ","),
+                paste0(var_summary$missing_pct, "%"),
+                var_summary$unique_values)
+  )
+}
+
+kable(profile_data, 
+      booktabs = TRUE,
+      caption = paste("Profil Variabel:", selected_var)) %>%
+  kable_styling(latex_options = c("striped", "hold_position")) %>%
+  row_spec(0, bold = TRUE, background = "#2E86AB", color = "white") %>%
+  column_spec(2, bold = TRUE)
+```
+
+## Key Insights
+
+```{r key-insights}
+insights <- c()
+
+if (is_numeric_var) {
+  # Numeric variable insights
+  if (var_summary$missing_pct == 0) {
+    insights <- c(insights, "✅ **Data Completeness:** Tidak ada missing data - kondisi ideal untuk analisis")
+  } else if (var_summary$missing_pct < 5) {
+    insights <- c(insights, "✅ **Data Completeness:** Missing data minimal - dapat diproses langsung")
+  } else {
+    insights <- c(insights, "⚠️ **Data Completeness:** Missing data signifikan - perlu preprocessing")
+  }
+  
+  if (normality_status == "Normal") {
+    insights <- c(insights, "📊 **Distribusi:** Data mengikuti distribusi normal - suitable untuk uji parametrik")
+  } else {
+    insights <- c(insights, "📊 **Distribusi:** Data tidak normal - pertimbangkan uji non-parametrik atau transformasi")
+  }
+  
+  if (variability_level == "Low") {
+    insights <- c(insights, "📈 **Variabilitas:** Variabilitas rendah - data cenderung homogen")
+  } else if (variability_level == "High") {
+    insights <- c(insights, "📈 **Variabilitas:** Variabilitas tinggi - data heterogen, perhatikan outliers")
+  }
+} else {
+  # Categorical variable insights
+  if (var_summary$unique_values <= 5) {
+    insights <- c(insights, "🏷️ **Kategori:** Variabel dengan kategori terbatas - suitable untuk analisis nominal")
+  } else if (var_summary$unique_values <= 20) {
+    insights <- c(insights, "🏷️ **Kategori:** Variabel dengan kategori sedang - evaluasi grouping jika diperlukan")
+  } else {
+    insights <- c(insights, "🏷️ **Kategori:** Banyak kategori unik - pertimbangkan kategorisasi ulang")
+  }
+}
+
+if (length(insights) == 0) {
+  insights <- "Variabel memerlukan evaluasi lebih lanjut."
+}
+```
+
+`r paste(insights, collapse = "\n\n")`
+
+\newpage
+
+# Analisis Statistik Deskriptif
+
+```{r descriptive-analysis}
+if (is_numeric_var && length(var_data_clean) > 0) {
+  # Comprehensive descriptive statistics
+  desc_table <- data.frame(
+    "Statistik" = c("Count (N)", "Mean", "Median", "Standard Deviation", "Variance",
+                    "Coefficient of Variation", "Minimum", "Maximum", "Range",
+                    "Q1 (25th Percentile)", "Q3 (75th Percentile)", "IQR",
+                    "Skewness", "Kurtosis"),
+    "Nilai" = c(
+      var_summary$n_valid,
+      format(var_summary$mean_val, nsmall = 4),
+      format(var_summary$median_val, nsmall = 4),
+      format(var_summary$sd_val, nsmall = 4),
+      format(var_summary$sd_val^2, nsmall = 4),
+      paste0(round(var_summary$sd_val / abs(var_summary$mean_val) * 100, 2), "%"),
+      format(var_summary$min_val, nsmall = 4),
+      format(var_summary$max_val, nsmall = 4),
+      format(var_summary$max_val - var_summary$min_val, nsmall = 4),
+      format(quantile(var_data_clean, 0.25), nsmall = 4),
+      format(quantile(var_data_clean, 0.75), nsmall = 4),
+      format(IQR(var_data_clean), nsmall = 4),
+      format(var_summary$skew_val, nsmall = 4),
+      format(var_summary$kurt_val, nsmall = 4)
+    ),
+    "Interpretasi" = c(
+      "Sample size", "Central tendency", "Central tendency (robust)", 
+      "Dispersion", "Dispersion (squared)", "Relative variability",
+      "Minimum value", "Maximum value", "Total spread",
+      "Lower quartile", "Upper quartile", "Middle 50% spread",
+      ifelse(abs(var_summary$skew_val) < 0.5, "Symmetric", 
+             ifelse(var_summary$skew_val > 0, "Right-skewed", "Left-skewed")),
+      ifelse(var_summary$kurt_val < 3, "Platykurtic (flatter)", 
+             ifelse(var_summary$kurt_val > 3, "Leptokurtic (peaked)", "Mesokurtic (normal)"))
+    )
+  )
+  
+  kable(desc_table,
+        booktabs = TRUE,
+        caption = "Statistik Deskriptif Komprehensif") %>%
+    kable_styling(latex_options = c("striped", "hold_position", "scale_down"), 
+                  font_size = 10) %>%
+    row_spec(0, bold = TRUE, background = "#A23B72", color = "white") %>%
+    column_spec(3, width = "4cm")
+} else if (!is_numeric_var) {
+  # Frequency table for categorical variables
+  freq_table <- table(var_data, useNA = "ifany")
+  freq_df <- data.frame(
+    "Kategori" = names(freq_table),
+    "Frekuensi" = as.numeric(freq_table),
+    "Persentase" = round(as.numeric(freq_table) / sum(freq_table) * 100, 2),
+    "Kumulatif %" = round(cumsum(as.numeric(freq_table)) / sum(freq_table) * 100, 2)
+  )
+  
+  kable(freq_df,
+        booktabs = TRUE,
+        caption = "Tabel Frekuensi Variabel Kategorikal") %>%
+    kable_styling(latex_options = c("striped", "hold_position")) %>%
+    row_spec(0, bold = TRUE, background = "#F18F01", color = "white")
+}
+```
+
+\newpage
+
+# Visualisasi Distribusi
+
+```{r distribution-plots, fig.cap="Analisis Visual Distribusi Variabel", fig.height=10}
+if (is_numeric_var && length(var_data_clean) > 0) {
+  # Create multiple plots for numeric variables
+  
+  # 1. Histogram with density curve
+  p1 <- ggplot(data.frame(x = var_data_clean), aes(x = x)) +
+    geom_histogram(aes(y = ..density..), bins = 30, fill = axis_colors[1], 
+                   alpha = 0.7, color = "white", size = 0.5) +
+    geom_density(color = axis_colors[2], size = 1.2) +
+    stat_function(fun = dnorm, 
+                  args = list(mean = mean(var_data_clean), sd = sd(var_data_clean)),
+                  color = axis_colors[3], size = 1, linetype = "dashed") +
+    labs(title = paste("Histogram dan Density Plot:", selected_var),
+         subtitle = "Histogram (bars), Estimated Density (solid), Normal Distribution (dashed)",
+         x = selected_var, y = "Density") +
+    theme_axis_exploration()
+  
+  # 2. Box plot with statistics
+  p2 <- ggplot(data.frame(x = "", y = var_data_clean), aes(x = x, y = y)) +
+    geom_boxplot(fill = axis_colors[1], alpha = 0.7, outlier.color = axis_colors[3],
+                 outlier.size = 2, width = 0.5) +
+    geom_jitter(width = 0.1, alpha = 0.3, color = axis_colors[4]) +
+    stat_summary(fun = mean, geom = "point", shape = 23, size = 4, 
+                 fill = axis_colors[2], color = "white") +
+    labs(title = paste("Box Plot:", selected_var),
+         subtitle = "Box plot with individual points and mean (diamond)",
+         x = "", y = selected_var) +
+    theme_axis_exploration() +
+    theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
+  
+  # 3. Q-Q Plot for normality assessment
+  p3 <- ggplot(data.frame(sample = var_data_clean), aes(sample = sample)) +
+    stat_qq(color = axis_colors[1], alpha = 0.7, size = 2) +
+    stat_qq_line(color = axis_colors[3], size = 1.2) +
+    labs(title = paste("Q-Q Plot:", selected_var),
+         subtitle = "Assessment of normality (points should follow the line)",
+         x = "Theoretical Quantiles", y = "Sample Quantiles") +
+    theme_axis_exploration()
+  
+  # 4. Empirical Cumulative Distribution Function
+  p4 <- ggplot(data.frame(x = var_data_clean), aes(x = x)) +
+    stat_ecdf(color = axis_colors[1], size = 1.2) +
+    stat_function(fun = pnorm, 
+                  args = list(mean = mean(var_data_clean), sd = sd(var_data_clean)),
+                  color = axis_colors[3], size = 1, linetype = "dashed") +
+    labs(title = paste("Empirical CDF:", selected_var),
+         subtitle = "Empirical CDF (solid) vs Normal CDF (dashed)",
+         x = selected_var, y = "Cumulative Probability") +
+    theme_axis_exploration()
+  
+  # Combine plots
+  grid.arrange(p1, p2, p3, p4, ncol = 2, nrow = 2)
+  
+} else if (!is_numeric_var) {
+  # Bar plot for categorical variables
+  freq_data <- as.data.frame(table(var_data, useNA = "ifany"))
+  names(freq_data) <- c("Category", "Frequency")
+  
+  p1 <- ggplot(freq_data, aes(x = reorder(Category, -Frequency), y = Frequency)) +
+    geom_bar(stat = "identity", fill = axis_colors[1], alpha = 0.8) +
+    geom_text(aes(label = Frequency), vjust = -0.5, size = 4) +
+    labs(title = paste("Distribution of", selected_var),
+         subtitle = "Frequency count for each category",
+         x = selected_var, y = "Frequency") +
+    theme_axis_exploration() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  
+  # Pie chart
+  p2 <- ggplot(freq_data, aes(x = "", y = Frequency, fill = Category)) +
+    geom_bar(stat = "identity", width = 1) +
+    coord_polar("y", start = 0) +
+    scale_fill_manual(values = axis_colors) +
+    labs(title = paste("Pie Chart:", selected_var),
+         subtitle = "Proportional distribution") +
+    theme_void() +
+    theme(plot.title = element_text(hjust = 0.5, size = 16, face = "bold", color = "#2E86AB"),
+          plot.subtitle = element_text(hjust = 0.5, size = 13))
+  
+  grid.arrange(p1, p2, ncol = 2)
+}
+```
+
+\newpage
+
+# Uji Asumsi Statistik
+
+```{r statistical-tests}
+if (is_numeric_var && length(var_data_clean) > 2) {
+  
+  # Normality tests
+  normality_tests <- list()
+  
+  # Shapiro-Wilk test (for n <= 5000)
+  if (length(var_data_clean) <= 5000) {
+    shapiro_result <- shapiro.test(var_data_clean)
+    normality_tests$shapiro <- list(
+      test = "Shapiro-Wilk",
+      statistic = round(shapiro_result$statistic, 4),
+      p_value = round(shapiro_result$p.value, 6),
+      conclusion = ifelse(shapiro_result$p.value > 0.05, "Normal", "Non-Normal")
+    )
+  }
+  
+  # Anderson-Darling test
+  if (requireNamespace("nortest", quietly = TRUE)) {
+    ad_result <- nortest::ad.test(var_data_clean)
+    normality_tests$anderson <- list(
+      test = "Anderson-Darling",
+      statistic = round(ad_result$statistic, 4),
+      p_value = round(ad_result$p.value, 6),
+      conclusion = ifelse(ad_result$p.value > 0.05, "Normal", "Non-Normal")
+    )
+  }
+  
+  # Kolmogorov-Smirnov test
+  ks_result <- ks.test(var_data_clean, "pnorm", mean(var_data_clean), sd(var_data_clean))
+  normality_tests$ks <- list(
+    test = "Kolmogorov-Smirnov",
+    statistic = round(ks_result$statistic, 4),
+    p_value = round(ks_result$p.value, 6),
+    conclusion = ifelse(ks_result$p.value > 0.05, "Normal", "Non-Normal")
+  )
+  
+  # Create normality test results table
+  test_results <- data.frame()
+  for (test_name in names(normality_tests)) {
+    test_info <- normality_tests[[test_name]]
+    test_results <- rbind(test_results, data.frame(
+      "Test" = test_info$test,
+      "Statistic" = test_info$statistic,
+      "P-Value" = ifelse(test_info$p_value < 0.001, "< 0.001", 
+                        format(test_info$p_value, scientific = TRUE, digits = 3)),
+      "Conclusion" = test_info$conclusion,
+      "Interpretation" = ifelse(test_info$p_value > 0.05, 
+                               "Gagal menolak H₀: Data konsisten dengan distribusi normal",
+                               "Tolak H₀: Data tidak berdistribusi normal")
+    ))
+  }
+  
+  kable(test_results,
+        booktabs = TRUE,
+        caption = "Hasil Uji Normalitas") %>%
+    kable_styling(latex_options = c("striped", "hold_position", "scale_down")) %>%
+    row_spec(0, bold = TRUE, background = "#4E8098", color = "white") %>%
+    column_spec(5, width = "5cm")
+}
+```
+
+## Interpretasi Uji Normalitas
+
+```{r normality-interpretation}
+if (is_numeric_var && exists("test_results")) {
+  normal_count <- sum(test_results$Conclusion == "Normal")
+  total_tests <- nrow(test_results)
+  
+  if (normal_count == total_tests) {
+    interpretation <- "**Kesimpulan: Data berdistribusi normal.** Semua uji normalitas menunjukkan bahwa data konsisten dengan distribusi normal (p > 0.05). Analisis parametrik dapat dilakukan dengan aman."
+  } else if (normal_count > total_tests/2) {
+    interpretation <- "**Kesimpulan: Data kemungkinan berdistribusi normal.** Mayoritas uji normalitas mendukung asumsi normalitas, namun beberapa uji menunjukkan deviasi. Pertimbangkan visual inspection dan ukuran sampel dalam interpretasi."
+  } else {
+    interpretation <- "**Kesimpulan: Data tidak berdistribusi normal.** Mayoritas uji normalitas menunjukkan deviasi signifikan dari distribusi normal. Pertimbangkan transformasi data atau gunakan uji non-parametrik."
+  }
+  
+  cat(interpretation)
+  
+  # Additional recommendations
+  cat("\n\n**Rekomendasi Analisis:**\n\n")
+  
+  if (normal_count == total_tests) {
+    recommendations <- c(
+      "✅ Gunakan uji parametrik (t-test, ANOVA, Pearson correlation)",
+      "✅ Analisis regresi linear dapat diterapkan",
+      "✅ Confidence intervals berbasis distribusi normal valid"
+    )
+  } else {
+    recommendations <- c(
+      "🔄 Pertimbangkan transformasi data (log, square root, Box-Cox)",
+      "📊 Gunakan uji non-parametrik (Mann-Whitney, Kruskal-Wallis, Spearman)",
+      "🎯 Bootstrap methods untuk confidence intervals",
+      "📈 Robust statistical methods"
+    )
+  }
+  
+  cat(paste(recommendations, collapse = "\n"))
+}
+```
+
+\newpage
+
+# Deteksi Outlier
+
+```{r outlier-detection}
+if (is_numeric_var && length(var_data_clean) > 0) {
+  # IQR Method
+  Q1 <- quantile(var_data_clean, 0.25)
+  Q3 <- quantile(var_data_clean, 0.75)
+  IQR_val <- Q3 - Q1
+  
+  lower_bound <- Q1 - 1.5 * IQR_val
+  upper_bound <- Q3 + 1.5 * IQR_val
+  
+  outliers_iqr <- var_data_clean[var_data_clean < lower_bound | var_data_clean > upper_bound]
+  
+  # Z-Score Method
+  z_scores <- abs((var_data_clean - mean(var_data_clean)) / sd(var_data_clean))
+  outliers_zscore <- var_data_clean[z_scores > 3]
+  
+  # Modified Z-Score Method (using median)
+  median_val <- median(var_data_clean)
+  mad_val <- mad(var_data_clean)
+  modified_z_scores <- 0.6745 * (var_data_clean - median_val) / mad_val
+  outliers_modified_z <- var_data_clean[abs(modified_z_scores) > 3.5]
+  
+  # Summary table
+  outlier_summary <- data.frame(
+    "Method" = c("IQR (1.5 × IQR)", "Z-Score (|z| > 3)", "Modified Z-Score (|z| > 3.5)"),
+    "Outliers_Count" = c(length(outliers_iqr), length(outliers_zscore), length(outliers_modified_z)),
+    "Percentage" = c(
+      round(length(outliers_iqr) / length(var_data_clean) * 100, 2),
+      round(length(outliers_zscore) / length(var_data_clean) * 100, 2),
+      round(length(outliers_modified_z) / length(var_data_clean) * 100, 2)
+    ),
+    "Severity" = c(
+      ifelse(length(outliers_iqr) / length(var_data_clean) > 0.1, "High", 
+             ifelse(length(outliers_iqr) / length(var_data_clean) > 0.05, "Moderate", "Low")),
+      ifelse(length(outliers_zscore) / length(var_data_clean) > 0.1, "High", 
+             ifelse(length(outliers_zscore) / length(var_data_clean) > 0.05, "Moderate", "Low")),
+      ifelse(length(outliers_modified_z) / length(var_data_clean) > 0.1, "High", 
+             ifelse(length(outliers_modified_z) / length(var_data_clean) > 0.05, "Moderate", "Low"))
+    )
+  )
+  
+  kable(outlier_summary,
+        booktabs = TRUE,
+        caption = "Analisis Outlier dengan Multiple Methods") %>%
+    kable_styling(latex_options = c("striped", "hold_position")) %>%
+    row_spec(0, bold = TRUE, background = "#C73E1D", color = "white") %>%
+    column_spec(4, color = ifelse(outlier_summary$Severity == "High", "red",
+                                 ifelse(outlier_summary$Severity == "Moderate", "orange", "green")))
+  
+  # Outlier values (if not too many)
+  if (length(outliers_iqr) > 0 && length(outliers_iqr) <= 20) {
+    cat("\n\n**Outlier Values (IQR Method):**\n")
+    cat(paste(round(sort(outliers_iqr), 4), collapse = ", "))
+  }
+}
+```
+
+## Treatment Outlier Recommendations
+
+```{r outlier-recommendations}
+if (is_numeric_var && exists("outlier_summary")) {
+  max_outliers <- max(outlier_summary$Outliers_Count)
+  max_percentage <- max(outlier_summary$Percentage)
+  
+  cat("**Rekomendasi Treatment Outlier:**\n\n")
+  
+  if (max_percentage < 5) {
+    recommendations <- c(
+      "✅ **Low Impact:** Outliers dalam batas normal, dapat dipertahankan",
+      "📊 Lakukan analisis dengan dan tanpa outliers untuk sensitivity check",
+      "🎯 Pertimbangkan context domain untuk validasi outliers"
+    )
+  } else if (max_percentage < 10) {
+    recommendations <- c(
+      "⚠️ **Moderate Impact:** Evaluasi penyebab outliers",
+      "🔍 Investigasi apakah outliers adalah data errors atau legitimate extreme values",
+      "🔄 Pertimbangkan transformasi data (log, sqrt) untuk reduce impact",
+      "📈 Gunakan robust statistical methods"
+    )
+  } else {
+    recommendations <- c(
+      "🚨 **High Impact:** Outliers signifikan mempengaruhi analisis",
+      "🔍 **Investigation:** Verifikasi data collection dan entry process",
+      "✂️ **Removal:** Pertimbangkan removal jika terbukti data errors",
+      "🔄 **Transformation:** Implementasi Box-Cox atau robust transformations",
+      "🛡️ **Robust Methods:** Gunakan median-based statistics dan non-parametric tests"
+    )
+  }
+  
+  cat(paste(recommendations, collapse = "\n"))
+}
+```
+
+\newpage
+
+# Analisis Hubungan dengan Variabel Lain
+
+```{r correlation-analysis}
+if (is_numeric_var) {
+  # Find other numeric variables for correlation analysis
+  other_numeric_vars <- names(data)[sapply(data, is.numeric) & names(data) != selected_var]
+  
+  if (length(other_numeric_vars) > 0) {
+    # Calculate correlations
+    correlations <- data.frame()
+    
+    for (var in other_numeric_vars) {
+      other_data <- data[[var]]
+      
+      # Complete cases for both variables
+      complete_cases <- complete.cases(var_data, other_data)
+      
+      if (sum(complete_cases) > 2) {
+        # Pearson correlation
+        pearson_cor <- cor(var_data[complete_cases], other_data[complete_cases], method = "pearson")
+        
+        # Spearman correlation (non-parametric)
+        spearman_cor <- cor(var_data[complete_cases], other_data[complete_cases], method = "spearman")
+        
+        # Correlation test
+        cor_test <- cor.test(var_data[complete_cases], other_data[complete_cases])
+        
+        correlations <- rbind(correlations, data.frame(
+          "Variable" = var,
+          "N" = sum(complete_cases),
+          "Pearson_r" = round(pearson_cor, 4),
+          "Spearman_r" = round(spearman_cor, 4),
+          "P_Value" = round(cor_test$p.value, 6),
+          "Significance" = ifelse(cor_test$p.value < 0.001, "***",
+                                 ifelse(cor_test$p.value < 0.01, "**",
+                                       ifelse(cor_test$p.value < 0.05, "*", "ns"))),
+          "Strength" = ifelse(abs(pearson_cor) >= 0.7, "Strong",
+                             ifelse(abs(pearson_cor) >= 0.5, "Moderate",
+                                   ifelse(abs(pearson_cor) >= 0.3, "Weak", "Very Weak"))),
+          "Direction" = ifelse(pearson_cor > 0, "Positive", "Negative")
+        ))
+      }
+    }
+    
+    if (nrow(correlations) > 0) {
+      kable(correlations,
+            booktabs = TRUE,
+            caption = paste("Analisis Korelasi:", selected_var, "dengan Variabel Lain")) %>%
+        kable_styling(latex_options = c("striped", "hold_position", "scale_down"),
+                      font_size = 9) %>%
+        row_spec(0, bold = TRUE, background = "#90A959", color = "white") %>%
+        add_footnote("Significance: *** p<0.001, ** p<0.01, * p<0.05, ns = not significant",
+                     notation = "alphabet")
+      
+      # Highlight strong correlations
+      strong_correlations <- correlations[correlations$Strength %in% c("Strong", "Moderate"), ]
+      
+      if (nrow(strong_correlations) > 0) {
+        cat("\n\n**Strong/Moderate Correlations:**\n\n")
+        for (i in 1:nrow(strong_correlations)) {
+          row <- strong_correlations[i, ]
+          cat(paste("•", row$Variable, ": r =", row$Pearson_r, 
+                   paste0("(", row$Strength, ", ", row$Direction, ")"),
+                   ifelse(row$Significance != "ns", paste("p", row$Significance), "ns"), "\n"))
+        }
+      }
+    }
+  }
+}
+```
+
+\newpage
+
+# Rekomendasi Analisis Lanjutan
+
+## Berdasarkan Karakteristik Variabel
+
+```{r analysis-recommendations}
+recommendations <- c()
+
+if (is_numeric_var) {
+  # Recommendations for numeric variables
+  
+  # Normality-based recommendations
+  if (exists("normal_count") && exists("total_tests")) {
+    if (normal_count == total_tests) {
+      recommendations <- c(recommendations,
+        "📊 **Distribusi Normal:** Variabel cocok untuk analisis parametrik",
+        "• t-test untuk perbandingan rata-rata",
+        "• ANOVA untuk perbandingan multiple groups", 
+        "• Pearson correlation untuk analisis hubungan",
+        "• Linear regression sebagai predictor/outcome")
+    } else {
+      recommendations <- c(recommendations,
+        "📊 **Distribusi Non-Normal:** Gunakan pendekatan non-parametrik",
+        "• Mann-Whitney U test untuk perbandingan dua grup",
+        "• Kruskal-Wallis test untuk multiple groups",
+        "• Spearman correlation untuk analisis hubungan",
+        "• Robust regression methods")
+    }
+  }
+  
+  # Outlier-based recommendations
+  if (exists("max_percentage")) {
+    if (max_percentage > 10) {
+      recommendations <- c(recommendations,
+        "",
+        "⚠️ **High Outliers:** Pertimbangkan robust methods",
+        "• Median-based statistics",
+        "• Trimmed means dan Winsorized statistics",
+        "• Bootstrap confidence intervals")
+    }
+  }
+  
+  # Correlation-based recommendations
+  if (exists("strong_correlations") && nrow(strong_correlations) > 0) {
+    recommendations <- c(recommendations,
+      "",
+      "🔗 **Strong Correlations Detected:**",
+      "• Multivariate analysis (PCA, Factor Analysis)",
+      "• Multiple regression dengan collinearity check",
+      "• Partial correlation analysis")
+  }
+  
+} else {
+  # Recommendations for categorical variables
+  recommendations <- c(recommendations,
+    "🏷️ **Variabel Kategorikal:** Analisis yang disarankan",
+    "• Chi-square test untuk independence",
+    "• Contingency table analysis",
+    "• Logistic regression sebagai outcome",
+    "• ANOVA dengan variabel ini sebagai grouping variable")
+  
+  if (exists("var_summary") && var_summary$unique_values > 10) {
+    recommendations <- c(recommendations,
+      "",
+      "⚠️ **Many Categories:** Pertimbangkan regrouping",
+      "• Combine similar categories",
+      "• Create ordinal encoding jika ada natural order",
+      "• Use as continuous if categories represent levels")
+  }
+}
+
+# Data quality recommendations
+if (exists("var_summary") && var_summary$missing_pct > 5) {
+  recommendations <- c(recommendations,
+    "",
+    "🔧 **Missing Data Treatment:**",
+    "• Investigate missing data pattern",
+    "• Consider imputation methods",
+    "• Missing data sensitivity analysis")
+}
+```
+
+`r paste(recommendations, collapse = "\n")`
+
+## Statistical Power Considerations
+
+```{r power-analysis}
+if (is_numeric_var && exists("var_summary")) {
+  n <- var_summary$n_valid
+  
+  cat("**Sample Size Assessment:**\n\n")
+  
+  # General power guidelines
+  if (n >= 100) {
+    power_assessment <- "Excellent - High power untuk most statistical tests"
+  } else if (n >= 50) {
+    power_assessment <- "Good - Adequate power untuk basic analyses"
+  } else if (n >= 30) {
+    power_assessment <- "Fair - Limited power, hasil harus interpreted dengan hati-hati"
+  } else {
+    power_assessment <- "Poor - Insufficient untuk robust statistical inference"
+  }
+  
+  cat(paste("• **Current Sample Size:** n =", n, "\n"))
+  cat(paste("• **Power Assessment:**", power_assessment, "\n\n"))
+  
+  # Specific recommendations based on sample size
+  if (n < 30) {
+    cat("**Small Sample Recommendations:**\n")
+    cat("• Focus pada descriptive analysis\n")
+    cat("• Use exact tests ketika tersedia\n") 
+    cat("• Consider bootstrap methods\n")
+    cat("• Interpret results sebagai exploratory\n")
+  } else if (n < 100) {
+    cat("**Medium Sample Recommendations:**\n")
+    cat("• Basic inferential tests dapat dilakukan\n")
+    cat("• Effect sizes harus reported\n")
+    cat("• Confidence intervals lebih informative daripada p-values\n")
+    cat("• Consider power analysis untuk future studies\n")
+  } else {
+    cat("**Large Sample Benefits:**\n")
+    cat("• High power untuk detecting medium effects\n")
+    cat("• Robust terhadap assumption violations\n")
+    cat("• Complex multivariate analyses feasible\n")
+    cat("• Cross-validation approaches applicable\n")
+  }
+}
+```
+
+\newpage
+
+# Kesimpulan dan Action Items
+
+## Executive Summary
+
+```{r final-summary}
+# Generate final summary based on all analyses
+summary_points <- c()
+
+if (is_numeric_var) {
+  # Variable characteristics
+  summary_points <- c(summary_points,
+    paste("🔢 **Variabel Numerik** dengan", format(var_summary$n_valid, big.mark = ","), "observasi valid"))
+  
+  if (exists("normality_status")) {
+    summary_points <- c(summary_points,
+      paste("📊 **Distribusi:**", normality_status))
+  }
+  
+  if (exists("variability_level")) {
+    summary_points <- c(summary_points,
+      paste("📈 **Variabilitas:**", variability_level))
+  }
+  
+  if (exists("max_percentage")) {
+    outlier_status <- ifelse(max_percentage < 5, "Low", 
+                            ifelse(max_percentage < 10, "Moderate", "High"))
+    summary_points <- c(summary_points,
+      paste("⚠️ **Outliers:**", outlier_status, "impact"))
+  }
+  
+} else {
+  summary_points <- c(summary_points,
+    paste("🏷️ **Variabel Kategorikal** dengan", var_summary$unique_values, "kategori unik"))
+}
+
+# Data quality
+if (var_summary$missing_pct == 0) {
+  summary_points <- c(summary_points, "✅ **Data Quality:** Perfect - no missing data")
+} else if (var_summary$missing_pct < 5) {
+  summary_points <- c(summary_points, "✅ **Data Quality:** Excellent - minimal missing data")  
+} else {
+  summary_points <- c(summary_points, "⚠️ **Data Quality:** Needs attention - significant missing data")
+}
+```
+
+`r paste(summary_points, collapse = "\n\n")`
+
+## Priority Action Items
+
+```{r action-items}
+actions <- c()
+
+# High priority actions
+if (exists("var_summary") && var_summary$missing_pct > 10) {
+  actions <- c(actions, "🚨 **HIGH PRIORITY:** Address missing data issue")
+}
+
+if (exists("max_percentage") && max_percentage > 15) {
+  actions <- c(actions, "🚨 **HIGH PRIORITY:** Investigate and treat outliers")
+}
+
+# Medium priority actions
+if (is_numeric_var && exists("normal_count") && exists("total_tests") && normal_count < total_tests) {
+  actions <- c(actions, "🔶 **MEDIUM:** Consider data transformation untuk improve normality")
+}
+
+if (exists("strong_correlations") && nrow(strong_correlations) > 2) {
+  actions <- c(actions, "🔶 **MEDIUM:** Evaluate multicollinearity dalam future modeling")
+}
+
+# Low priority actions
+if (is_numeric_var && exists("var_summary") && var_summary$n_valid < 100) {
+  actions <- c(actions, "🔸 **LOW:** Consider collecting more data untuk better power")
+}
+
+if (length(actions) == 0) {
+  actions <- "✅ **No immediate actions required** - Variable dalam kondisi optimal untuk analisis"
+}
+```
+
+`r paste(actions, collapse = "\n\n")`
+
+## Next Steps untuk Analysis
+
+```{r next-steps}
+next_steps <- c()
+
+if (is_numeric_var) {
+  if (exists("normality_status") && normality_status == "Normal") {
+    next_steps <- c(next_steps,
+      "1. **Parametric Analysis:** Proceed dengan t-tests, ANOVA, correlation analysis",
+      "2. **Regression Modeling:** Variable dapat digunakan sebagai predictor atau outcome",
+      "3. **Confidence Intervals:** Calculate 95% CI untuk population parameters")
+  } else {
+    next_steps <- c(next_steps,
+      "1. **Non-parametric Analysis:** Use Mann-Whitney, Kruskal-Wallis tests",
+      "2. **Data Transformation:** Try log, sqrt, atau Box-Cox transformation",
+      "3. **Robust Methods:** Implement median-based statistics")
+  }
+  
+  if (exists("correlations") && nrow(correlations) > 0) {
+    next_steps <- c(next_steps,
+      "4. **Multivariate Analysis:** Explore relationships dengan other variables")
+  }
+} else {
+  next_steps <- c(next_steps,
+    "1. **Frequency Analysis:** Detailed contingency tables",
+    "2. **Independence Testing:** Chi-square tests dengan other categorical variables", 
+    "3. **Logistic Modeling:** Use sebagai outcome variable in regression")
+}
+
+# Add quality improvement steps if needed
+if (exists("var_summary") && var_summary$missing_pct > 0) {
+  next_steps <- c(next_steps,
+    paste(length(next_steps) + 1, "**Data Quality:** Implement missing data treatment strategy"))
+}
+```
+
+`r paste(next_steps, collapse = "\n\n")`
+
+---
+
+\vspace{1cm}
+
+\begin{center}
+\colorbox{primaryblue!20}{
+\begin{minipage}{0.9\textwidth}
+\centering
+\textbf{Laporan ini memberikan foundation yang solid untuk analisis statistik lanjutan.} \\
+\vspace{0.2cm}
+Semua recommendations berdasarkan evidence-based statistical practices dan dapat diimplementasikan menggunakan fitur-fitur yang tersedia di AXIS Dashboard.
+\end{minipage}
+}
+\end{center}
+
+\vspace{1cm}
+\begin{center}
+\textit{Generated by AXIS Dashboard - Advanced eXploratory \& Inferential Statistics}
+\end{center}

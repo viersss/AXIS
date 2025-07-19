@@ -1,0 +1,1255 @@
+---
+title: "Laporan Analisis Regresi Komprehensif"
+subtitle: "AXIS Dashboard - Advanced Statistical Analysis System"
+author: "AXIS Analytics Team"
+date: "`r format(Sys.Date(), '%d %B %Y')`"
+output: 
+  pdf_document:
+    toc: true
+    toc_depth: 3
+    number_sections: true
+    latex_engine: xelatex
+    keep_tex: false
+    fig_caption: true
+    fig_width: 10
+    fig_height: 7
+    includes:
+      in_header: 
+params:
+  data_path: "data.csv"
+  dependent_var: "y_variable"
+  independent_vars: "x1,x2,x3"
+  analysis_date: !r Sys.Date()
+geometry: margin=1in
+fontsize: 11pt
+header-includes:
+  - \usepackage{booktabs}
+  - \usepackage{longtable}
+  - \usepackage{array}
+  - \usepackage{multirow}
+  - \usepackage{wrapfig}
+  - \usepackage{float}
+  - \usepackage{colortbl}
+  - \usepackage{pdflscape}
+  - \usepackage{tabu}
+  - \usepackage{threeparttable}
+  - \usepackage{threeparttablex}
+  - \usepackage[normalem]{ulem}
+  - \usepackage{makecell}
+  - \usepackage{xcolor}
+  - \usepackage{amsmath}
+  - \usepackage{amsfonts}
+  - \definecolor{primaryblue}{RGB}{46,134,171}
+  - \definecolor{secondarypurple}{RGB}{162,59,114}
+  - \definecolor{accentorange}{RGB}{241,143,1}
+  - \definecolor{successgreen}{RGB}{78,128,152}
+  - \definecolor{warningred}{RGB}{199,61,29}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE, 
+  warning = FALSE, 
+  message = FALSE,
+  fig.align = 'center',
+  fig.pos = 'H',
+  out.width = '100%'
+)
+
+# Load required libraries
+library(knitr)
+library(dplyr)
+library(ggplot2)
+library(car)
+library(lmtest)
+library(nortest)
+library(broom)
+library(corrplot)
+library(gridExtra)
+library(kableExtra)
+library(ggpubr)
+library(MASS)
+
+# Read data
+if (file.exists(params$data_path)) {
+  data <- read.csv(params$data_path, fileEncoding = "UTF-8", check.names = FALSE)
+} else {
+  stop("Data file not found!")
+}
+
+# Parse variables
+dependent_var <- params$dependent_var
+independent_vars <- strsplit(params$independent_vars, ",")[[1]]
+independent_vars <- trimws(independent_vars)
+
+# Validate variables exist in data
+all_vars <- c(dependent_var, independent_vars)
+missing_vars <- all_vars[!all_vars %in% names(data)]
+
+if (length(missing_vars) > 0) {
+  # Fallback: use first numeric variables
+  numeric_vars <- names(data)[sapply(data, is.numeric)]
+  if (length(numeric_vars) >= 2) {
+    dependent_var <- numeric_vars[1]
+    independent_vars <- numeric_vars[2:min(4, length(numeric_vars))]
+  } else {
+    stop("Insufficient numeric variables for regression analysis!")
+  }
+}
+
+# Ensure variables are numeric
+all_vars <- c(dependent_var, independent_vars)
+for (var in all_vars) {
+  if (!is.numeric(data[[var]])) {
+    data[[var]] <- as.numeric(as.character(data[[var]]))
+  }
+}
+
+# Create regression data (complete cases only)
+regression_data <- data[c(dependent_var, independent_vars)]
+regression_data <- regression_data[complete.cases(regression_data), ]
+
+# Custom theme for plots
+theme_axis_regression <- function() {
+  theme_minimal() +
+    theme(
+      plot.title = element_text(size = 16, face = "bold", hjust = 0.5, color = "#2E86AB"),
+      plot.subtitle = element_text(size = 13, hjust = 0.5, color = "#666666", margin = margin(b = 20)),
+      axis.title = element_text(size = 12, face = "bold"),
+      axis.text = element_text(size = 11),
+      legend.title = element_text(size = 12, face = "bold"),
+      legend.text = element_text(size = 11),
+      panel.grid.minor = element_blank(),
+      panel.border = element_rect(fill = NA, color = "gray90"),
+      strip.background = element_rect(fill = "gray95", color = "gray90"),
+      strip.text = element_text(size = 12, face = "bold"),
+      plot.margin = margin(25, 25, 25, 25)
+    )
+}
+
+# Set theme
+theme_set(theme_axis_regression())
+
+# Color palette
+axis_colors <- c("#2E86AB", "#A23B72", "#F18F01", "#C73E1D", "#4E8098", "#90A959")
+```
+
+\newpage
+
+# Ringkasan Eksekutif Analisis Regresi
+
+```{r executive-summary}
+# Build regression formula
+formula_str <- paste(dependent_var, "~", paste(independent_vars, collapse = " + "))
+regression_formula <- as.formula(formula_str)
+
+# Fit the regression model
+model <- lm(regression_formula, data = regression_data)
+model_summary <- summary(model)
+
+# Extract key statistics
+n_obs <- nrow(regression_data)
+n_predictors <- length(independent_vars)
+r_squared <- round(model_summary$r.squared, 4)
+adj_r_squared <- round(model_summary$adj.r.squared, 4)
+f_statistic <- round(model_summary$fstatistic[1], 3)
+f_pvalue <- round(pf(model_summary$fstatistic[1], 
+                     model_summary$fstatistic[2], 
+                     model_summary$fstatistic[3], 
+                     lower.tail = FALSE), 6)
+
+# Model significance
+model_significance <- ifelse(f_pvalue < 0.001, "Highly Significant (p < 0.001)",
+                           ifelse(f_pvalue < 0.01, "Very Significant (p < 0.01)",
+                                 ifelse(f_pvalue < 0.05, "Significant (p < 0.05)", "Not Significant")))
+
+# Effect size interpretation
+effect_size <- ifelse(r_squared >= 0.25, "Large Effect",
+                     ifelse(r_squared >= 0.09, "Medium Effect",
+                           ifelse(r_squared >= 0.01, "Small Effect", "Negligible Effect")))
+```
+
+\begin{center}
+\colorbox{primaryblue!10}{
+\begin{minipage}{0.9\textwidth}
+\centering
+\textbf{\large Analisis Regresi Linear: \texttt{`r dependent_var`} ~ \texttt{`r paste(independent_vars, collapse = " + ")`}} \\
+\vspace{0.3cm}
+Laporan ini menyajikan analisis regresi komprehensif untuk memodelkan hubungan antara variabel dependen dengan `r n_predictors` variabel independen menggunakan metodologi least squares dengan diagnostic comprehensif.
+\end{minipage}
+}
+\end{center}
+
+## Model Performance Summary
+
+```{r model-summary-table}
+performance_table <- data.frame(
+  "Metrik" = c("Sample Size", "Number of Predictors", "R-squared", "Adjusted R-squared",
+               "F-statistic", "P-value (F-test)", "Model Significance", "Effect Size"),
+  "Nilai" = c(
+    format(n_obs, big.mark = ","),
+    n_predictors,
+    paste0(r_squared * 100, "%"),
+    paste0(adj_r_squared * 100, "%"),
+    f_statistic,
+    ifelse(f_pvalue < 0.001, "< 0.001", format(f_pvalue, scientific = TRUE, digits = 3)),
+    model_significance,
+    effect_size
+  )
+)
+
+kable(performance_table, 
+      booktabs = TRUE,
+      caption = "Ringkasan Performance Model Regresi") %>%
+  kable_styling(latex_options = c("striped", "hold_position")) %>%
+  row_spec(0, bold = TRUE, background = "#2E86AB", color = "white") %>%
+  row_spec(c(7,8), bold = TRUE, background = "#f0f8ff")
+```
+
+## Key Findings
+
+```{r key-findings}
+# Generate key findings
+findings <- c()
+
+if (f_pvalue < 0.05) {
+  findings <- c(findings, paste("✅ **Model Significance:** Model secara keseluruhan signifikan secara statistik dengan F(", 
+                               model_summary$fstatistic[2], ",", model_summary$fstatistic[3], ") =", f_statistic))
+} else {
+  findings <- c(findings, "❌ **Model Significance:** Model tidak signifikan secara keseluruhan")
+}
+
+if (r_squared >= 0.5) {
+  findings <- c(findings, paste("📊 **Explanatory Power:** Model menjelaskan", round(r_squared*100, 1), "% variasi dalam", dependent_var, "- sangat baik"))
+} else if (r_squared >= 0.3) {
+  findings <- c(findings, paste("📊 **Explanatory Power:** Model menjelaskan", round(r_squared*100, 1), "% variasi dalam", dependent_var, "- cukup baik"))
+} else {
+  findings <- c(findings, paste("📊 **Explanatory Power:** Model menjelaskan", round(r_squared*100, 1), "% variasi dalam", dependent_var, "- lemah"))
+}
+
+# Count significant predictors
+coef_table <- model_summary$coefficients
+significant_predictors <- sum(coef_table[-1, 4] < 0.05, na.rm = TRUE)  # Exclude intercept
+
+findings <- c(findings, paste("🎯 **Predictor Significance:**", significant_predictors, "dari", n_predictors, "prediktor signifikan (p < 0.05)"))
+
+if (length(findings) == 0) {
+  findings <- "Model memerlukan evaluasi lebih lanjut."
+}
+```
+
+`r paste(findings, collapse = "\n\n")`
+
+\newpage
+
+# Model Specification dan Formula
+
+## Mathematical Model
+
+Model regresi linear berganda yang diestimasi:
+
+\begin{align}
+\text{`r dependent_var`} &= \beta_0 + \beta_1 \cdot \text{`r independent_vars[1]`}
+\end{align}
+
+```{r model-equation}
+# Build the mathematical equation
+if (length(independent_vars) > 1) {
+  for (i in 2:length(independent_vars)) {
+    cat("\\begin{align}\n")
+    cat("&\\quad + \\beta_{", i, "} \\cdot \\text{", independent_vars[i], "}\n", sep = "")
+    cat("\\end{align}\n\n")
+  }
+}
+cat("\\begin{align}\n")
+cat("&\\quad + \\varepsilon\n")
+cat("\\end{align}\n\n")
+
+cat("Dimana:\n")
+cat("- $\\varepsilon \\sim N(0, \\sigma^2)$ (error term)\n")
+cat("- $\\beta_0$ = intercept\n")
+for (i in 1:length(independent_vars)) {
+  cat("- $\\beta_", i, "$ = koefisien untuk ", independent_vars[i], "\n", sep = "")
+}
+```
+
+## Data Characteristics
+
+```{r data-characteristics}
+# Descriptive statistics for regression variables
+desc_stats <- data.frame()
+
+for (var in c(dependent_var, independent_vars)) {
+  var_data <- regression_data[[var]]
+  
+  desc_stats <- rbind(desc_stats, data.frame(
+    Variable = var,
+    Role = ifelse(var == dependent_var, "Dependent", "Independent"),
+    N = length(var_data),
+    Mean = round(mean(var_data), 4),
+    SD = round(sd(var_data), 4),
+    Min = round(min(var_data), 4),
+    Max = round(max(var_data), 4),
+    Skewness = round(moments::skewness(var_data), 3),
+    stringsAsFactors = FALSE
+  ))
+}
+
+kable(desc_stats,
+      booktabs = TRUE,
+      caption = "Statistik Deskriptif Variabel dalam Model") %>%
+  kable_styling(latex_options = c("striped", "hold_position", "scale_down")) %>%
+  row_spec(0, bold = TRUE, background = "#A23B72", color = "white") %>%
+  row_spec(1, bold = TRUE, background = "#fff3cd")  # Highlight dependent variable
+```
+
+\newpage
+
+# Hasil Estimasi Model
+
+## Koefisien Regresi
+
+```{r regression-coefficients}
+# Create comprehensive coefficients table
+coef_df <- data.frame(
+  "Variable" = rownames(coef_table),
+  "Coefficient" = round(coef_table[, 1], 6),
+  "Std_Error" = round(coef_table[, 2], 6),
+  "t_value" = round(coef_table[, 3], 3),
+  "P_value" = ifelse(coef_table[, 4] < 0.001, "< 0.001", 
+                    round(coef_table[, 4], 6)),
+  "Significance" = ifelse(coef_table[, 4] < 0.001, "***",
+                         ifelse(coef_table[, 4] < 0.01, "**",
+                               ifelse(coef_table[, 4] < 0.05, "*",
+                                     ifelse(coef_table[, 4] < 0.1, ".", "")))),
+  stringsAsFactors = FALSE
+)
+
+# Add confidence intervals
+conf_intervals <- confint(model, level = 0.95)
+coef_df$CI_Lower <- round(conf_intervals[, 1], 6)
+coef_df$CI_Upper <- round(conf_intervals[, 2], 6)
+
+# Add interpretation
+coef_df$Interpretation <- c()
+for (i in 1:nrow(coef_df)) {
+  if (i == 1) {  # Intercept
+    coef_df$Interpretation[i] <- "Expected value when all predictors = 0"
+  } else {
+    var_name <- gsub("\\(Intercept\\)", "", coef_df$Variable[i])
+    if (coef_df$P_value[i] == "< 0.001" || as.numeric(coef_df$P_value[i]) < 0.05) {
+      direction <- ifelse(coef_df$Coefficient[i] > 0, "increases", "decreases")
+      coef_df$Interpretation[i] <- paste("1 unit increase →", abs(round(coef_df$Coefficient[i], 3)), direction)
+    } else {
+      coef_df$Interpretation[i] <- "No significant effect"
+    }
+  }
+}
+
+kable(coef_df,
+      booktabs = TRUE,
+      caption = "Koefisien Regresi dengan Confidence Intervals (95%)",
+      col.names = c("Variable", "Coefficient", "Std. Error", "t-value", "P-value", 
+                    "Sig.", "CI Lower", "CI Upper", "Interpretation")) %>%
+  kable_styling(latex_options = c("striped", "hold_position", "scale_down"),
+                font_size = 9) %>%
+  row_spec(0, bold = TRUE, background = "#4E8098", color = "white") %>%
+  row_spec(1, bold = TRUE, background = "#e8f4f8") %>%  # Highlight intercept
+  add_footnote("Significance codes: *** p<0.001, ** p<0.01, * p<0.05, . p<0.1",
+               notation = "alphabet")
+```
+
+## Model Fit Statistics
+
+```{r model-fit}
+# Additional model statistics
+residual_se <- round(model_summary$sigma, 6)
+degrees_freedom <- model_summary$df[2]
+aic_value <- round(AIC(model), 2)
+bic_value <- round(BIC(model), 2)
+
+# Root Mean Square Error
+rmse <- round(sqrt(mean(model$residuals^2)), 6)
+
+# Mean Absolute Error
+mae <- round(mean(abs(model$residuals)), 6)
+
+fit_stats <- data.frame(
+  "Statistic" = c("Residual Standard Error", "Degrees of Freedom", "AIC", "BIC", 
+                  "RMSE", "MAE", "Multiple R-squared", "Adjusted R-squared"),
+  "Value" = c(residual_se, degrees_freedom, aic_value, bic_value, 
+              rmse, mae, r_squared, adj_r_squared),
+  "Interpretation" = c(
+    "Average prediction error",
+    "Error degrees of freedom", 
+    "Model selection criterion (lower better)",
+    "Model selection criterion (lower better)",
+    "Root mean square error",
+    "Mean absolute error",
+    "Proportion of variance explained",
+    "R² adjusted for number of predictors"
+  )
+)
+
+kable(fit_stats,
+      booktabs = TRUE,
+      caption = "Model Fit Statistics") %>%
+  kable_styling(latex_options = c("striped", "hold_position")) %>%
+  row_spec(0, bold = TRUE, background = "#90A959", color = "white") %>%
+  row_spec(c(7,8), bold = TRUE, background = "#f0f8ff")
+```
+
+\newpage
+
+# Analisis Diagnostik Residual
+
+```{r diagnostic-plots, fig.cap="Diagnostic Plots untuk Validasi Asumsi Regresi", fig.height=10}
+# Create diagnostic plots
+residuals <- model$residuals
+fitted_values <- model$fitted.values
+standardized_residuals <- rstandard(model)
+studentized_residuals <- rstudent(model)
+
+# 1. Residuals vs Fitted (Linearity & Homoscedasticity)
+p1 <- ggplot(data.frame(fitted = fitted_values, residuals = residuals), 
+             aes(x = fitted, y = residuals)) +
+  geom_point(alpha = 0.6, color = axis_colors[1]) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = axis_colors[3]) +
+  geom_smooth(method = "loess", se = FALSE, color = axis_colors[2]) +
+  labs(title = "Residuals vs Fitted Values",
+       subtitle = "Check for linearity and homoscedasticity",
+       x = "Fitted Values", y = "Residuals") +
+  theme_axis_regression()
+
+# 2. Q-Q Plot (Normality of residuals)
+p2 <- ggplot(data.frame(sample = standardized_residuals), aes(sample = sample)) +
+  stat_qq(alpha = 0.6, color = axis_colors[1]) +
+  stat_qq_line(color = axis_colors[3], size = 1) +
+  labs(title = "Q-Q Plot of Standardized Residuals",
+       subtitle = "Check for normality of residuals",
+       x = "Theoretical Quantiles", y = "Standardized Residuals") +
+  theme_axis_regression()
+
+# 3. Scale-Location Plot (Homoscedasticity)
+sqrt_abs_residuals <- sqrt(abs(standardized_residuals))
+p3 <- ggplot(data.frame(fitted = fitted_values, sqrt_residuals = sqrt_abs_residuals),
+             aes(x = fitted, y = sqrt_residuals)) +
+  geom_point(alpha = 0.6, color = axis_colors[1]) +
+  geom_smooth(method = "loess", se = FALSE, color = axis_colors[2]) +
+  labs(title = "Scale-Location Plot",
+       subtitle = "Check for homoscedasticity (constant variance)",
+       x = "Fitted Values", y = "√|Standardized Residuals|") +
+  theme_axis_regression()
+
+# 4. Residuals vs Leverage (Influential points)
+leverage <- hatvalues(model)
+p4 <- ggplot(data.frame(leverage = leverage, studentized = studentized_residuals),
+             aes(x = leverage, y = studentized)) +
+  geom_point(alpha = 0.6, color = axis_colors[1]) +
+  geom_hline(yintercept = c(-2, 2), linetype = "dashed", color = axis_colors[3]) +
+  geom_vline(xintercept = 2 * (length(independent_vars) + 1) / n_obs, 
+             linetype = "dashed", color = axis_colors[4]) +
+  labs(title = "Residuals vs Leverage",
+       subtitle = "Identify influential observations",
+       x = "Leverage", y = "Studentized Residuals") +
+  theme_axis_regression()
+
+# Combine plots
+grid.arrange(p1, p2, p3, p4, ncol = 2, nrow = 2)
+```
+
+## Diagnostic Tests
+
+```{r diagnostic-tests}
+# Perform formal diagnostic tests
+
+# 1. Normality tests
+shapiro_test <- shapiro.test(residuals)
+if (requireNamespace("nortest", quietly = TRUE)) {
+  jb_test <- nortest::jarque.bera.test(residuals)
+  ad_test <- nortest::ad.test(residuals)
+}
+
+# 2. Homoscedasticity tests
+bp_test <- bptest(model)  # Breusch-Pagan test
+if (requireNamespace("car", quietly = TRUE)) {
+  ncv_test <- car::ncvTest(model)  # Non-constant variance test
+}
+
+# 3. Autocorrelation test
+dw_test <- dwtest(model)  # Durbin-Watson test
+
+# 4. Linearity test (RESET test)
+if (requireNamespace("lmtest", quietly = TRUE)) {
+  reset_test <- lmtest::resettest(model)
+}
+
+# Create diagnostic results table
+diagnostic_results <- data.frame(
+  "Test" = c("Shapiro-Wilk (Normality)", "Breusch-Pagan (Homoscedasticity)", 
+             "Durbin-Watson (Autocorrelation)"),
+  "Statistic" = c(
+    round(shapiro_test$statistic, 4),
+    round(bp_test$statistic, 4),
+    round(dw_test$statistic, 4)
+  ),
+  "P_Value" = c(
+    ifelse(shapiro_test$p.value < 0.001, "< 0.001", round(shapiro_test$p.value, 6)),
+    ifelse(bp_test$p.value < 0.001, "< 0.001", round(bp_test$p.value, 6)),
+    ifelse(dw_test$p.value < 0.001, "< 0.001", round(dw_test$p.value, 6))
+  ),
+  "Conclusion" = c(
+    ifelse(shapiro_test$p.value > 0.05, "Residuals Normal", "Residuals Non-Normal"),
+    ifelse(bp_test$p.value > 0.05, "Homoscedastic", "Heteroscedastic"),
+    ifelse(dw_test$p.value > 0.05 & dw_test$statistic > 1.5 & dw_test$statistic < 2.5, 
+           "No Autocorrelation", "Autocorrelation Present")
+  ),
+  "Interpretation" = c(
+    ifelse(shapiro_test$p.value > 0.05, 
+           "Asumsi normalitas residual terpenuhi",
+           "Asumsi normalitas residual DILANGGAR"),
+    ifelse(bp_test$p.value > 0.05,
+           "Asumsi homoscedasticity terpenuhi", 
+           "Asumsi homoscedasticity DILANGGAR"),
+    ifelse(dw_test$p.value > 0.05 & dw_test$statistic > 1.5 & dw_test$statistic < 2.5,
+           "Tidak ada autocorrelation",
+           "Ada indikasi autocorrelation")
+  )
+)
+
+# Add additional tests if available
+if (exists("ad_test")) {
+  diagnostic_results <- rbind(diagnostic_results, data.frame(
+    "Test" = "Anderson-Darling (Normality)",
+    "Statistic" = round(ad_test$statistic, 4),
+    "P_Value" = ifelse(ad_test$p.value < 0.001, "< 0.001", round(ad_test$p.value, 6)),
+    "Conclusion" = ifelse(ad_test$p.value > 0.05, "Residuals Normal", "Residuals Non-Normal"),
+    "Interpretation" = ifelse(ad_test$p.value > 0.05, 
+                             "Asumsi normalitas residual terpenuhi",
+                             "Asumsi normalitas residual DILANGGAR")
+  ))
+}
+
+if (exists("reset_test")) {
+  diagnostic_results <- rbind(diagnostic_results, data.frame(
+    "Test" = "RESET Test (Linearity)",
+    "Statistic" = round(reset_test$statistic, 4),
+    "P_Value" = ifelse(reset_test$p.value < 0.001, "< 0.001", round(reset_test$p.value, 6)),
+    "Conclusion" = ifelse(reset_test$p.value > 0.05, "Linear Model Adequate", "Non-linearity Detected"),
+    "Interpretation" = ifelse(reset_test$p.value > 0.05,
+                             "Model linear memadai",
+                             "Ada indikasi non-linearity")
+  ))
+}
+
+kable(diagnostic_results,
+      booktabs = TRUE,
+      caption = "Hasil Uji Diagnostik Asumsi Regresi") %>%
+  kable_styling(latex_options = c("striped", "hold_position", "scale_down"),
+                font_size = 9) %>%
+  row_spec(0, bold = TRUE, background = "#C73E1D", color = "white") %>%
+  column_spec(5, width = "4cm")
+```
+
+\newpage
+
+# Analisis Multikolinearitas
+
+```{r multicollinearity}
+# Variance Inflation Factor (VIF)
+if (length(independent_vars) > 1) {
+  vif_values <- car::vif(model)
+  
+  # Create VIF table
+  vif_df <- data.frame(
+    "Variable" = names(vif_values),
+    "VIF" = round(vif_values, 3),
+    "Tolerance" = round(1 / vif_values, 3),
+    "Assessment" = ifelse(vif_values > 10, "Severe Multicollinearity",
+                         ifelse(vif_values > 5, "Moderate Multicollinearity",
+                               ifelse(vif_values > 2.5, "Some Multicollinearity", "No Multicollinearity"))),
+    "Recommendation" = ifelse(vif_values > 10, "Consider removing variable",
+                             ifelse(vif_values > 5, "Monitor closely",
+                                   ifelse(vif_values > 2.5, "Acceptable level", "Excellent")))
+  )
+  
+  kable(vif_df,
+        booktabs = TRUE,
+        caption = "Variance Inflation Factor (VIF) Analysis") %>%
+    kable_styling(latex_options = c("striped", "hold_position")) %>%
+    row_spec(0, bold = TRUE, background = "#F18F01", color = "white") %>%
+    column_spec(4, color = ifelse(vif_df$VIF > 5, "red", 
+                                 ifelse(vif_df$VIF > 2.5, "orange", "green")))
+  
+  # Correlation matrix of predictors
+  if (length(independent_vars) >= 2) {
+    predictor_data <- regression_data[independent_vars]
+    cor_matrix <- cor(predictor_data)
+    
+    cat("\n\n## Correlation Matrix of Predictors\n\n")
+    cat("High correlations (|r| > 0.7) between predictors indicate potential multicollinearity:\n\n")
+    
+    # Find high correlations
+    high_cor <- which(abs(cor_matrix) > 0.7 & abs(cor_matrix) < 1, arr.ind = TRUE)
+    
+    if (nrow(high_cor) > 0) {
+      cat("**High Correlations Detected:**\n\n")
+      for (i in 1:nrow(high_cor)) {
+        var1 <- rownames(cor_matrix)[high_cor[i,1]]
+        var2 <- colnames(cor_matrix)[high_cor[i,2]]
+        cor_val <- cor_matrix[high_cor[i,1], high_cor[i,2]]
+        cat(paste("- ", var1, " ↔ ", var2, ": r = ", round(cor_val, 3), "\n", sep = ""))
+      }
+    } else {
+      cat("✅ No high correlations detected between predictors.\n")
+    }
+  }
+} else {
+  cat("VIF analysis tidak diperlukan untuk model dengan satu prediktor.\n")
+}
+```
+
+```{r correlation-plot, fig.cap="Correlation Matrix of Predictor Variables", fig.height=6}
+if (length(independent_vars) >= 2) {
+  # Create correlation plot
+  corrplot(cor_matrix, 
+           method = "color", 
+           type = "upper",
+           order = "hclust",
+           tl.cex = 0.8,
+           tl.col = "black",
+           addCoef.col = "black",
+           number.cex = 0.8,
+           col = colorRampPalette(c("#C73E1D", "white", "#2E86AB"))(100),
+           title = "Correlation Matrix of Predictor Variables",
+           mar = c(0,0,1,0))
+}
+```
+
+\newpage
+
+# Identifikasi Outliers dan Influential Points
+
+```{r outliers-influence}
+# Calculate influence measures
+influence_measures <- influence.measures(model)
+cook_d <- cooks.distance(model)
+leverage <- hatvalues(model)
+dffits_vals <- dffits(model)
+
+# Define thresholds
+cook_threshold <- 4 / n_obs  # Cook's D threshold
+leverage_threshold <- 2 * (length(independent_vars) + 1) / n_obs  # Leverage threshold
+dffits_threshold <- 2 * sqrt((length(independent_vars) + 1) / n_obs)  # DFFITS threshold
+
+# Identify problematic observations
+high_cook <- which(cook_d > cook_threshold)
+high_leverage <- which(leverage > leverage_threshold)
+high_dffits <- which(abs(dffits_vals) > dffits_threshold)
+
+# Create influence statistics table
+influence_df <- data.frame(
+  "Observation" = 1:n_obs,
+  "Cooks_D" = round(cook_d, 6),
+  "Leverage" = round(leverage, 6),
+  "DFFITS" = round(dffits_vals, 6),
+  "Studentized_Residual" = round(studentized_residuals, 4)
+)
+
+# Flag problematic observations
+influence_df$Issues <- ""
+for (i in 1:nrow(influence_df)) {
+  issues <- c()
+  if (i %in% high_cook) issues <- c(issues, "High Cook's D")
+  if (i %in% high_leverage) issues <- c(issues, "High Leverage")
+  if (i %in% high_dffits) issues <- c(issues, "High DFFITS")
+  if (abs(influence_df$Studentized_Residual[i]) > 3) issues <- c(issues, "Extreme Residual")
+  
+  influence_df$Issues[i] <- ifelse(length(issues) > 0, paste(issues, collapse = ", "), "None")
+}
+
+# Show only problematic observations or top 10
+problematic_obs <- influence_df[influence_df$Issues != "None", ]
+
+if (nrow(problematic_obs) > 0) {
+  kable(problematic_obs,
+        booktabs = TRUE,
+        caption = "Potentially Problematic Observations") %>%
+    kable_styling(latex_options = c("striped", "hold_position", "scale_down")) %>%
+    row_spec(0, bold = TRUE, background = "#C73E1D", color = "white")
+  
+  cat("\n\n**Interpretation:**\n\n")
+  cat(paste("- **High Cook's D (>", round(cook_threshold, 4), "):**", length(high_cook), "observations\n"))
+  cat(paste("- **High Leverage (>", round(leverage_threshold, 4), "):**", length(high_leverage), "observations\n"))
+  cat(paste("- **High DFFITS (> ±", round(dffits_threshold, 4), "):**", length(high_dffits), "observations\n"))
+  
+} else {
+  cat("✅ **Excellent!** No influential observations detected based on standard thresholds.\n\n")
+  cat("All observations appear to have reasonable influence on the regression model.\n")
+}
+
+# Summary of influence diagnostics
+influence_summary <- data.frame(
+  "Measure" = c("Cook's Distance", "Leverage", "DFFITS", "Studentized Residuals"),
+  "Threshold" = c(
+    paste(">", round(cook_threshold, 4)),
+    paste(">", round(leverage_threshold, 4)),
+    paste("> ±", round(dffits_threshold, 4)),
+    "> ±3"
+  ),
+  "Flagged_Obs" = c(
+    length(high_cook),
+    length(high_leverage), 
+    length(high_dffits),
+    sum(abs(studentized_residuals) > 3)
+  ),
+  "Percentage" = c(
+    round(length(high_cook) / n_obs * 100, 2),
+    round(length(high_leverage) / n_obs * 100, 2),
+    round(length(high_dffits) / n_obs * 100, 2),
+    round(sum(abs(studentized_residuals) > 3) / n_obs * 100, 2)
+  )
+)
+
+kable(influence_summary,
+      booktabs = TRUE,
+      caption = "Summary of Influence Diagnostics",
+      col.names = c("Measure", "Threshold", "Flagged Obs.", "Percentage (%)")) %>%
+  kable_styling(latex_options = c("striped", "hold_position")) %>%
+  row_spec(0, bold = TRUE, background = "#4E8098", color = "white")
+```
+
+\newpage
+
+# Model Interpretation dan Practical Significance
+
+## Effect Size Analysis
+
+```{r effect-size}
+# Calculate standardized coefficients (beta coefficients)
+standardized_data <- as.data.frame(scale(regression_data))
+standardized_model <- lm(as.formula(formula_str), data = standardized_data)
+beta_coefficients <- coef(standardized_model)[-1]  # Exclude intercept
+
+# Calculate partial correlations
+partial_correlations <- c()
+for (i in 1:length(independent_vars)) {
+  # Create model without this variable
+  other_vars <- independent_vars[-i]
+  if (length(other_vars) > 0) {
+    reduced_formula <- as.formula(paste(dependent_var, "~", paste(other_vars, collapse = " + ")))
+    reduced_model <- lm(reduced_formula, data = regression_data)
+    
+    # Calculate partial correlation
+    y_residuals <- residuals(lm(as.formula(paste(dependent_var, "~ .")), 
+                               data = regression_data[other_vars]))
+    x_residuals <- residuals(lm(as.formula(paste(independent_vars[i], "~ .")),
+                               data = regression_data[other_vars]))
+    partial_cor <- cor(y_residuals, x_residuals)
+    partial_correlations <- c(partial_correlations, partial_cor)
+  } else {
+    partial_correlations <- c(partial_correlations, cor(regression_data[[dependent_var]], 
+                                                        regression_data[[independent_vars[i]]]))
+  }
+}
+
+# Effect size table
+effect_size_df <- data.frame(
+  "Variable" = independent_vars,
+  "Raw_Coefficient" = round(coef(model)[-1], 6),
+  "Standardized_Beta" = round(beta_coefficients, 4),
+  "Partial_Correlation" = round(partial_correlations, 4),
+  "Effect_Size" = ifelse(abs(beta_coefficients) >= 0.5, "Large",
+                        ifelse(abs(beta_coefficients) >= 0.3, "Medium",
+                              ifelse(abs(beta_coefficients) >= 0.1, "Small", "Negligible"))),
+  "Practical_Significance" = ifelse(abs(beta_coefficients) >= 0.3, "High",
+                                   ifelse(abs(beta_coefficients) >= 0.1, "Moderate", "Low"))
+)
+
+kable(effect_size_df,
+      booktabs = TRUE,
+      caption = "Effect Size Analysis of Predictors",
+      col.names = c("Variable", "Raw Coeff.", "Std. Beta", "Partial r", "Effect Size", "Practical Sig.")) %>%
+  kable_styling(latex_options = c("striped", "hold_position", "scale_down")) %>%
+  row_spec(0, bold = TRUE, background = "#90A959", color = "white") %>%
+  column_spec(6, color = ifelse(effect_size_df$Practical_Significance == "High", "green",
+                               ifelse(effect_size_df$Practical_Significance == "Moderate", "orange", "red")))
+```
+
+## Practical Interpretation
+
+```{r practical-interpretation}
+cat("### Real-World Implications\n\n")
+
+for (i in 1:length(independent_vars)) {
+  var <- independent_vars[i]
+  coef_val <- coef(model)[var]
+  p_val <- model_summary$coefficients[var, 4]
+  beta_val <- beta_coefficients[i]
+  
+  cat(paste("**", var, ":**\n", sep = ""))
+  
+  if (p_val < 0.05) {
+    direction <- ifelse(coef_val > 0, "increase", "decrease")
+    cat(paste("- Every 1-unit increase in", var, "is associated with a", 
+              round(abs(coef_val), 4), direction, "in", dependent_var, "\n"))
+    cat(paste("- This represents a", tolower(effect_size_df$Effect_Size[i]), "effect size (β =", 
+              round(beta_val, 3), ")\n"))
+    
+    # Calculate practical example
+    if (var %in% names(regression_data)) {
+      var_sd <- sd(regression_data[[var]])
+      practical_change <- coef_val * var_sd
+      cat(paste("- A 1 standard deviation change in", var, "(±", round(var_sd, 2), 
+                ") predicts a", round(abs(practical_change), 4), direction, "in", dependent_var, "\n"))
+    }
+  } else {
+    cat(paste("- No statistically significant relationship with", dependent_var, "(p =", 
+              round(p_val, 3), ")\n"))
+    cat("- Consider removing from model or investigating further\n")
+  }
+  cat("\n")
+}
+
+# Model utility assessment
+cat("### Overall Model Utility\n\n")
+
+if (f_pvalue < 0.05) {
+  cat("✅ **Statistical Significance:** Model is statistically significant overall\n\n")
+} else {
+  cat("❌ **Statistical Significance:** Model lacks overall statistical significance\n\n")
+}
+
+if (r_squared >= 0.5) {
+  cat(paste("✅ **Explanatory Power:** Strong -", round(r_squared*100, 1), "% of variance explained\n\n"))
+} else if (r_squared >= 0.25) {
+  cat(paste("⚠️ **Explanatory Power:** Moderate -", round(r_squared*100, 1), "% of variance explained\n\n"))
+} else {
+  cat(paste("❌ **Explanatory Power:** Weak -", round(r_squared*100, 1), "% of variance explained\n\n"))
+}
+
+# Predictive accuracy assessment
+prediction_accuracy <- 1 - (rmse / sd(regression_data[[dependent_var]]))
+cat(paste("📊 **Predictive Accuracy:**", round(prediction_accuracy*100, 1), "% improvement over mean prediction\n\n"))
+```
+
+\newpage
+
+# Model Comparison dan Selection
+
+```{r model-comparison}
+# Compare with alternative models
+
+# 1. Intercept-only model (baseline)
+null_model <- lm(as.formula(paste(dependent_var, "~ 1")), data = regression_data)
+
+# 2. Try reduced models (backward selection approach)
+if (length(independent_vars) > 1) {
+  # Forward selection
+  forward_model <- step(null_model, 
+                       scope = list(lower = null_model, upper = model),
+                       direction = "forward", trace = 0)
+  
+  # Backward selection  
+  backward_model <- step(model, direction = "backward", trace = 0)
+  
+  # Both directions
+  both_model <- step(null_model,
+                    scope = list(lower = null_model, upper = model),
+                    direction = "both", trace = 0)
+  
+  # Create comparison table
+  model_comparison <- data.frame(
+    "Model" = c("Null (Intercept only)", "Full Model", "Forward Selection", 
+                "Backward Selection", "Stepwise (Both)"),
+    "Variables" = c(0, length(independent_vars), 
+                   length(coef(forward_model)) - 1,
+                   length(coef(backward_model)) - 1,
+                   length(coef(both_model)) - 1),
+    "R_squared" = c(0, r_squared, 
+                   round(summary(forward_model)$r.squared, 4),
+                   round(summary(backward_model)$r.squared, 4),
+                   round(summary(both_model)$r.squared, 4)),
+    "Adj_R_squared" = c(0, adj_r_squared,
+                       round(summary(forward_model)$adj.r.squared, 4),
+                       round(summary(backward_model)$adj.r.squared, 4),
+                       round(summary(both_model)$adj.r.squared, 4)),
+    "AIC" = c(round(AIC(null_model), 2), aic_value,
+              round(AIC(forward_model), 2),
+              round(AIC(backward_model), 2), 
+              round(AIC(both_model), 2)),
+    "BIC" = c(round(BIC(null_model), 2), bic_value,
+              round(BIC(forward_model), 2),
+              round(BIC(backward_model), 2),
+              round(BIC(both_model), 2))
+  )
+  
+  # Identify best model based on AIC
+  best_aic_idx <- which.min(model_comparison$AIC)
+  model_comparison$Best_AIC <- ifelse(1:nrow(model_comparison) == best_aic_idx, "✓", "")
+  
+  # Identify best model based on BIC
+  best_bic_idx <- which.min(model_comparison$BIC)
+  model_comparison$Best_BIC <- ifelse(1:nrow(model_comparison) == best_bic_idx, "✓", "")
+  
+  kable(model_comparison,
+        booktabs = TRUE,
+        caption = "Model Comparison and Selection",
+        col.names = c("Model", "# Vars", "R²", "Adj. R²", "AIC", "BIC", "Best AIC", "Best BIC")) %>%
+    kable_styling(latex_options = c("striped", "hold_position", "scale_down")) %>%
+    row_spec(0, bold = TRUE, background = "#2E86AB", color = "white") %>%
+    row_spec(best_aic_idx, background = "#e8f4f8") %>%
+    row_spec(best_bic_idx, background = "#fff3cd")
+  
+  # Model selection recommendation
+  cat("\n\n**Model Selection Recommendation:**\n\n")
+  
+  best_model_name <- model_comparison$Model[best_aic_idx]
+  cat(paste("Based on AIC criterion:", best_model_name, "is recommended\n"))
+  
+  if (best_aic_idx != best_bic_idx) {
+    best_bic_name <- model_comparison$Model[best_bic_idx]
+    cat(paste("Based on BIC criterion:", best_bic_name, "is recommended\n"))
+    cat("\nBIC tends to prefer simpler models than AIC. Consider domain knowledge for final decision.\n")
+  }
+  
+} else {
+  cat("Model comparison tidak diperlukan untuk model dengan satu prediktor.\n")
+}
+```
+
+\newpage
+
+# Cross-Validation dan Model Validation
+
+```{r cross-validation}
+# Perform k-fold cross-validation
+set.seed(123)  # For reproducibility
+k <- 5  # 5-fold CV
+
+# Create folds
+n <- nrow(regression_data)
+fold_size <- floor(n / k)
+folds <- rep(1:k, each = fold_size)
+if (length(folds) < n) {
+  folds <- c(folds, rep(k, n - length(folds)))
+}
+folds <- sample(folds)  # Randomize
+
+# Perform CV
+cv_results <- data.frame()
+predictions <- numeric(n)
+actual_values <- regression_data[[dependent_var]]
+
+for (i in 1:k) {
+  # Training and test sets
+  test_idx <- which(folds == i)
+  train_idx <- which(folds != i)
+  
+  train_data <- regression_data[train_idx, ]
+  test_data <- regression_data[test_idx, ]
+  
+  # Fit model on training data
+  cv_model <- lm(regression_formula, data = train_data)
+  
+  # Predict on test data
+  test_predictions <- predict(cv_model, newdata = test_data)
+  predictions[test_idx] <- test_predictions
+  
+  # Calculate metrics for this fold
+  fold_rmse <- sqrt(mean((test_data[[dependent_var]] - test_predictions)^2))
+  fold_mae <- mean(abs(test_data[[dependent_var]] - test_predictions))
+  fold_r2 <- cor(test_data[[dependent_var]], test_predictions)^2
+  
+  cv_results <- rbind(cv_results, data.frame(
+    Fold = i,
+    RMSE = round(fold_rmse, 6),
+    MAE = round(fold_mae, 6),
+    R_squared = round(fold_r2, 4),
+    n_test = length(test_idx)
+  ))
+}
+
+# Overall CV metrics
+cv_rmse <- sqrt(mean((actual_values - predictions)^2))
+cv_mae <- mean(abs(actual_values - predictions))
+cv_r2 <- cor(actual_values, predictions)^2
+
+# Add summary row
+cv_results <- rbind(cv_results, data.frame(
+  Fold = "Overall",
+  RMSE = round(cv_rmse, 6),
+  MAE = round(cv_mae, 6), 
+  R_squared = round(cv_r2, 4),
+  n_test = n
+))
+
+kable(cv_results,
+      booktabs = TRUE,
+      caption = "5-Fold Cross-Validation Results") %>%
+  kable_styling(latex_options = c("striped", "hold_position")) %>%
+  row_spec(0, bold = TRUE, background = "#4E8098", color = "white") %>%
+  row_spec(nrow(cv_results), bold = TRUE, background = "#f0f8ff")
+
+# Validation assessment
+cat("\n\n**Cross-Validation Assessment:**\n\n")
+
+# Compare CV R² with training R²
+r2_difference <- r_squared - cv_r2
+if (r2_difference < 0.05) {
+  cat("✅ **Model Stability:** Excellent - CV R² very close to training R²\n")
+} else if (r2_difference < 0.1) {
+  cat("⚠️ **Model Stability:** Good - Some difference between CV and training R²\n")
+} else {
+  cat("❌ **Model Stability:** Poor - Large difference suggests overfitting\n")
+}
+
+cat(paste("- Training R²:", round(r_squared, 4), "\n"))
+cat(paste("- Cross-Validation R²:", round(cv_r2, 4), "\n"))
+cat(paste("- Difference:", round(r2_difference, 4), "\n\n"))
+
+# RMSE comparison
+rmse_comparison <- rmse / cv_rmse
+if (rmse_comparison < 1.05) {
+  cat("✅ **Prediction Accuracy:** Consistent across folds\n")
+} else if (rmse_comparison < 1.15) {
+  cat("⚠️ **Prediction Accuracy:** Some variation across folds\n")  
+} else {
+  cat("❌ **Prediction Accuracy:** High variation suggests instability\n")
+}
+
+cat(paste("- Training RMSE:", round(rmse, 6), "\n"))
+cat(paste("- Cross-Validation RMSE:", round(cv_rmse, 6), "\n"))
+```
+
+\newpage
+
+# Kesimpulan dan Rekomendasi
+
+## Executive Summary
+
+```{r final-conclusions}
+cat("### Model Performance Summary\n\n")
+
+# Overall assessment
+performance_grade <- "F"
+if (f_pvalue < 0.05 && r_squared >= 0.5) {
+  performance_grade <- "A"
+} else if (f_pvalue < 0.05 && r_squared >= 0.3) {
+  performance_grade <- "B"
+} else if (f_pvalue < 0.05 && r_squared >= 0.1) {
+  performance_grade <- "C"
+} else if (f_pvalue < 0.05) {
+  performance_grade <- "D"
+}
+
+cat(paste("**Overall Model Grade:**", performance_grade, "\n\n"))
+
+# Key findings summary
+cat("**Key Findings:**\n\n")
+
+if (f_pvalue < 0.001) {
+  cat("✅ Model is highly statistically significant (p < 0.001)\n")
+} else if (f_pvalue < 0.05) {
+  cat("✅ Model is statistically significant (p < 0.05)\n")
+} else {
+  cat("❌ Model lacks statistical significance\n")
+}
+
+cat(paste("📊 Model explains", round(r_squared*100, 1), "% of variance in", dependent_var, "\n"))
+
+significant_predictors <- sum(model_summary$coefficients[-1, 4] < 0.05)
+cat(paste("🎯", significant_predictors, "out of", length(independent_vars), "predictors are significant\n"))
+
+# Assumption violations
+violations <- c()
+if (exists("diagnostic_results")) {
+  for (i in 1:nrow(diagnostic_results)) {
+    if (grepl("DILANGGAR", diagnostic_results$Interpretation[i])) {
+      violations <- c(violations, diagnostic_results$Test[i])
+    }
+  }
+}
+
+if (length(violations) == 0) {
+  cat("✅ All regression assumptions are satisfied\n")
+} else {
+  cat(paste("⚠️ Assumption violations detected:", paste(violations, collapse = ", "), "\n"))
+}
+
+# Cross-validation performance
+if (exists("cv_r2")) {
+  if (abs(r_squared - cv_r2) < 0.05) {
+    cat("✅ Model shows good cross-validation stability\n")
+  } else {
+    cat("⚠️ Model shows some overfitting in cross-validation\n")
+  }
+}
+```
+
+## Statistical Significance vs Practical Significance
+
+```{r significance-summary}
+cat("\n### Significance Assessment\n\n")
+
+# Create significance summary table
+significance_summary <- data.frame(
+  "Variable" = c("Overall Model", independent_vars),
+  "Statistical_Sig" = c(
+    ifelse(f_pvalue < 0.05, "Yes", "No"),
+    ifelse(model_summary$coefficients[-1, 4] < 0.05, "Yes", "No")
+  ),
+  "Effect_Size" = c(
+    effect_size,
+    effect_size_df$Effect_Size
+  ),
+  "Practical_Sig" = c(
+    ifelse(r_squared >= 0.25, "High", ifelse(r_squared >= 0.09, "Medium", "Low")),
+    effect_size_df$Practical_Significance
+  )
+)
+
+kable(significance_summary,
+      booktabs = TRUE,
+      caption = "Summary of Statistical and Practical Significance",
+      col.names = c("Variable", "Statistical Sig.", "Effect Size", "Practical Sig.")) %>%
+  kable_styling(latex_options = c("striped", "hold_position")) %>%
+  row_spec(0, bold = TRUE, background = "#2E86AB", color = "white") %>%
+  row_spec(1, bold = TRUE, background = "#f0f8ff")
+```
+
+## Actionable Recommendations
+
+```{r recommendations}
+cat("\n### Priority Recommendations\n\n")
+
+recommendations <- c()
+
+# Model improvement recommendations
+if (r_squared < 0.3) {
+  recommendations <- c(recommendations, "🔴 **HIGH PRIORITY:** Model explanatory power is low - consider additional predictors or non-linear terms")
+}
+
+if (length(violations) > 0) {
+  recommendations <- c(recommendations, "🔴 **HIGH PRIORITY:** Address assumption violations through transformation or robust methods")
+}
+
+# Variable selection recommendations
+non_significant <- independent_vars[model_summary$coefficients[-1, 4] >= 0.05]
+if (length(non_significant) > 0) {
+  recommendations <- c(recommendations, 
+                      paste("🟡 **MEDIUM PRIORITY:** Consider removing non-significant predictors:", 
+                           paste(non_significant, collapse = ", ")))
+}
+
+# Multicollinearity recommendations
+if (exists("vif_df") && any(vif_df$VIF > 5)) {
+  high_vif_vars <- vif_df$Variable[vif_df$VIF > 5]
+  recommendations <- c(recommendations,
+                      paste("🟡 **MEDIUM PRIORITY:** Address multicollinearity for variables:", 
+                           paste(high_vif_vars, collapse = ", ")))
+}
+
+# Sample size recommendations
+if (n_obs < 10 * length(independent_vars)) {
+  recommendations <- c(recommendations, "🟡 **MEDIUM PRIORITY:** Consider collecting more data (current ratio is low)")
+}
+
+# Cross-validation recommendations
+if (exists("cv_r2") && abs(r_squared - cv_r2) > 0.1) {
+  recommendations <- c(recommendations, "🟡 **MEDIUM PRIORITY:** Model shows overfitting - consider regularization or simpler model")
+}
+
+# Influential points recommendations
+if (exists("problematic_obs") && nrow(problematic_obs) > 0) {
+  recommendations <- c(recommendations, "🔵 **LOW PRIORITY:** Investigate influential observations and consider robust regression")
+}
+
+if (length(recommendations) == 0) {
+  recommendations <- "✅ **Excellent!** Model meets all standard criteria for regression analysis"
+}
+
+for (rec in recommendations) {
+  cat(paste(rec, "\n\n"))
+}
+```
+
+## Future Analysis Suggestions
+
+```{r future-analysis}
+cat("### Suggested Follow-up Analyses\n\n")
+
+future_analyses <- c()
+
+# Model extensions
+if (r_squared < 0.5) {
+  future_analyses <- c(future_analyses, "🔬 **Model Enhancement:** Explore polynomial terms, interaction effects, or non-linear models")
+}
+
+# Additional diagnostics
+future_analyses <- c(future_analyses, "📊 **Advanced Diagnostics:** Perform residual analysis by subgroups, examine partial regression plots")
+
+# Validation
+future_analyses <- c(future_analyses, "✅ **External Validation:** Test model on new data if available")
+
+# Alternative approaches
+if (length(violations) > 0) {
+  future_analyses <- c(future_analyses, "🔄 **Alternative Methods:** Consider robust regression, generalized linear models, or machine learning approaches")
+}
+
+# Causal inference
+if (f_pvalue < 0.05) {
+  future_analyses <- c(future_analyses, "🎯 **Causal Analysis:** If appropriate, consider instrumental variables or natural experiments for causal inference")
+}
+
+for (analysis in future_analyses) {
+  cat(paste(analysis, "\n\n"))
+}
+```
+
+## Model Equation (Final)
+
+Based on the analysis, the estimated regression equation is:
+
+\begin{align}
+\widehat{\text{`r dependent_var`}} &= `r round(coef(model)[1], 4)`
+\end{align}
+
+```{r final-equation}
+# Build final equation with coefficients
+for (i in 1:length(independent_vars)) {
+  coef_val <- coef(model)[independent_vars[i]]
+  sign <- ifelse(coef_val >= 0, "+", "")
+  cat("\\begin{align}\n")
+  cat("&\\quad ", sign, " ", round(coef_val, 4), " \\cdot \\text{", independent_vars[i], "}\n", sep = "")
+  cat("\\end{align}\n\n")
+}
+
+cat("\\vspace{0.5cm}\n\n")
+cat("**Model Statistics:**\n")
+cat(paste("- R² =", round(r_squared, 4), "(", round(r_squared*100, 1), "% variance explained)\n"))
+cat(paste("- Adjusted R² =", round(adj_r_squared, 4), "\n"))
+cat(paste("- Standard Error =", round(residual_se, 4), "\n"))
+cat(paste("- F-statistic =", f_statistic, "on", model_summary$fstatistic[2], "and", model_summary$fstatistic[3], "DF\n"))
+cat(paste("- p-value =", ifelse(f_pvalue < 0.001, "< 0.001", round(f_pvalue, 6)), "\n"))
+```
+
+---
+
+\vspace{1cm}
+
+\begin{center}
+\colorbox{primaryblue!20}{
+\begin{minipage}{0.9\textwidth}
+\centering
+\textbf{Laporan ini memberikan analisis regresi yang komprehensif dan evidence-based.} \\
+\vspace{0.2cm}
+Semua interpretasi dan rekomendasi mengikuti standar statistik profesional dan dapat digunakan untuk pengambilan keputusan yang informed.
+\end{minipage}
+}
+\end{center}
+
+\vspace{1cm}
+\begin{center}
+\textit{Generated by AXIS Dashboard - Advanced eXploratory \& Inferential Statistics}
+\end{center}

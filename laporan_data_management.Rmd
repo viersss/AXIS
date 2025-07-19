@@ -1,0 +1,592 @@
+---
+title: "Laporan Komprehensif Manajemen Data"
+subtitle: "AXIS Dashboard - Advanced Statistical Analysis System"
+author: "AXIS Analytics Team"
+date: "`r format(Sys.Date(), '%d %B %Y')`"
+output: 
+  pdf_document:
+    toc: true
+    toc_depth: 3
+    number_sections: true
+    latex_engine: xelatex
+    keep_tex: false
+    fig_caption: true
+    fig_width: 8
+    fig_height: 6
+    includes:
+      in_header: 
+params:
+  data_path: "data.csv"
+  analysis_date: !r Sys.Date()
+geometry: margin=1in
+fontsize: 11pt
+header-includes:
+  - \usepackage{booktabs}
+  - \usepackage{longtable}
+  - \usepackage{array}
+  - \usepackage{multirow}
+  - \usepackage{wrapfig}
+  - \usepackage{float}
+  - \usepackage{colortbl}
+  - \usepackage{pdflscape}
+  - \usepackage{tabu}
+  - \usepackage{threeparttable}
+  - \usepackage{threeparttablex}
+  - \usepackage[normalem]{ulem}
+  - \usepackage{makecell}
+  - \usepackage{xcolor}
+  - \definecolor{primaryblue}{RGB}{46,134,171}
+  - \definecolor{secondarypurple}{RGB}{162,59,114}
+  - \definecolor{accentorange}{RGB}{241,143,1}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE, 
+  warning = FALSE, 
+  message = FALSE,
+  fig.align = 'center',
+  fig.pos = 'H',
+  out.width = '100%'
+)
+
+# Load required libraries
+library(knitr)
+library(dplyr)
+library(ggplot2)
+library(corrplot)
+library(VIM)
+library(DT)
+library(moments)
+library(psych)
+library(gridExtra)
+library(kableExtra)
+
+# Read data
+if (file.exists(params$data_path)) {
+  data <- read.csv(params$data_path, fileEncoding = "UTF-8", check.names = FALSE)
+} else {
+  stop("Data file not found!")
+}
+
+# Custom theme for plots
+theme_axis_report <- function() {
+  theme_minimal() +
+    theme(
+      plot.title = element_text(size = 14, face = "bold", hjust = 0.5, color = "#2E86AB"),
+      plot.subtitle = element_text(size = 12, hjust = 0.5, color = "#666666"),
+      axis.title = element_text(size = 11, face = "bold"),
+      axis.text = element_text(size = 10),
+      legend.title = element_text(size = 11, face = "bold"),
+      legend.text = element_text(size = 10),
+      panel.grid.minor = element_blank(),
+      panel.border = element_rect(fill = NA, color = "gray90"),
+      strip.background = element_rect(fill = "gray95", color = "gray90"),
+      strip.text = element_text(size = 11, face = "bold"),
+      plot.margin = margin(20, 20, 20, 20)
+    )
+}
+
+# Set theme
+theme_set(theme_axis_report())
+
+# Color palette
+axis_colors <- c("#2E86AB", "#A23B72", "#F18F01", "#C73E1D", "#4E8098", "#90A959")
+```
+
+\newpage
+
+# Ringkasan Eksekutif
+
+```{r executive-summary}
+# Calculate basic statistics
+n_rows <- nrow(data)
+n_cols <- ncol(data)
+missing_total <- sum(is.na(data))
+missing_percent <- round((missing_total / (n_rows * n_cols)) * 100, 2)
+
+# Get numeric and categorical variables
+numeric_vars <- names(data)[sapply(data, is.numeric)]
+categorical_vars <- names(data)[sapply(data, function(x) is.character(x) | is.factor(x))]
+
+# Calculate data quality metrics
+data_quality_score <- ifelse(missing_percent < 5, "Excellent", 
+                            ifelse(missing_percent < 10, "Good",
+                                  ifelse(missing_percent < 20, "Fair", "Poor")))
+```
+
+\begin{center}
+\colorbox{primaryblue!10}{
+\begin{minipage}{0.9\textwidth}
+\centering
+\textbf{\large Laporan ini menyajikan analisis komprehensif kualitas dan karakteristik dataset yang diunggah ke AXIS Dashboard.} \\
+\vspace{0.3cm}
+Analisis meliputi evaluasi struktural data, deteksi missing values, identifikasi outliers, dan rekomendasi preprocessing untuk analisis statistik lanjutan.
+\end{minipage}
+}
+\end{center}
+
+## Temuan Kunci
+
+**Dimensi Dataset:** `r format(n_rows, big.mark = ",")` observasi × `r n_cols` variabel
+
+**Kualitas Data:** `r data_quality_score` (`r missing_percent`% missing data)
+
+**Struktur Variabel:** `r length(numeric_vars)` numerik, `r length(categorical_vars)` kategorikal
+
+## Rekomendasi Utama
+
+```{r recommendations}
+# Generate recommendations based on data characteristics
+recommendations <- c()
+
+if (missing_percent > 10) {
+  recommendations <- c(recommendations, "Implementasi strategi imputation untuk missing data")
+}
+
+if (length(numeric_vars) >= 3) {
+  recommendations <- c(recommendations, "Dataset siap untuk analisis multivariat")
+}
+
+if (n_rows >= 30) {
+  recommendations <- c(recommendations, "Sample size memadai untuk analisis inferensial")
+}
+
+if (length(recommendations) == 0) {
+  recommendations <- "Dataset dalam kondisi optimal untuk analisis statistik"
+}
+```
+
+- `r paste(recommendations, collapse = "\n- ")`
+
+\newpage
+
+# Profil Dataset Komprehensif
+
+## Informasi Struktural
+
+```{r dataset-info}
+info_table <- data.frame(
+  "Karakteristik" = c("Total Observasi", "Total Variabel", "Variabel Numerik", "Variabel Kategorikal", 
+                      "Missing Data Total", "Persentase Missing", "Ukuran File (estimasi)", "Status Kualitas"),
+  "Nilai" = c(
+    format(n_rows, big.mark = ","),
+    n_cols,
+    length(numeric_vars),
+    length(categorical_vars),
+    format(missing_total, big.mark = ","),
+    paste0(missing_percent, "%"),
+    paste0(round(object.size(data) / 1024^2, 2), " MB"),
+    data_quality_score
+  )
+)
+
+kable(info_table, 
+      booktabs = TRUE,
+      caption = "Ringkasan Karakteristik Dataset") %>%
+  kable_styling(latex_options = c("striped", "hold_position")) %>%
+  row_spec(0, bold = TRUE, background = "#2E86AB", color = "white") %>%
+  row_spec(nrow(info_table), bold = TRUE, background = "#f0f8ff")
+```
+
+## Inventori Variabel
+
+```{r variable-inventory}
+if (length(numeric_vars) > 0) {
+  # Numeric variables summary
+  numeric_summary <- data.frame(
+    "Variabel" = numeric_vars,
+    "Tipe" = rep("Numerik", length(numeric_vars)),
+    "Missing" = sapply(data[numeric_vars], function(x) sum(is.na(x))),
+    "Missing%" = sapply(data[numeric_vars], function(x) round(sum(is.na(x))/length(x)*100, 1)),
+    "Range" = sapply(data[numeric_vars], function(x) {
+      if (all(is.na(x))) return("N/A")
+      paste0("[", round(min(x, na.rm = TRUE), 2), ", ", round(max(x, na.rm = TRUE), 2), "]")
+    }),
+    stringsAsFactors = FALSE
+  )
+  
+  kable(numeric_summary,
+        booktabs = TRUE,
+        caption = "Inventori Variabel Numerik") %>%
+    kable_styling(latex_options = c("striped", "hold_position", "scale_down")) %>%
+    row_spec(0, bold = TRUE, background = "#A23B72", color = "white")
+}
+
+if (length(categorical_vars) > 0) {
+  # Categorical variables summary
+  categorical_summary <- data.frame(
+    "Variabel" = categorical_vars,
+    "Tipe" = rep("Kategorikal", length(categorical_vars)),
+    "Unique_Values" = sapply(data[categorical_vars], function(x) length(unique(x[!is.na(x)]))),
+    "Missing" = sapply(data[categorical_vars], function(x) sum(is.na(x))),
+    "Most_Frequent" = sapply(data[categorical_vars], function(x) {
+      if (all(is.na(x))) return("N/A")
+      names(sort(table(x, useNA = "no"), decreasing = TRUE))[1]
+    }),
+    stringsAsFactors = FALSE
+  )
+  
+  kable(categorical_summary,
+        booktabs = TRUE,
+        caption = "Inventori Variabel Kategorikal") %>%
+    kable_styling(latex_options = c("striped", "hold_position", "scale_down")) %>%
+    row_spec(0, bold = TRUE, background = "#F18F01", color = "white")
+}
+```
+
+\newpage
+
+# Analisis Kualitas Data
+
+## Pola Missing Data
+
+```{r missing-data-analysis, fig.cap="Pola Missing Data dalam Dataset", fig.height=6}
+if (missing_total > 0) {
+  # Missing data pattern analysis
+  if (requireNamespace("VIM", quietly = TRUE)) {
+    # Create missing data plot
+    VIM::aggr(data, 
+              col = c(axis_colors[1], axis_colors[2]), 
+              numbers = TRUE, 
+              sortVars = TRUE,
+              cex.axis = 0.8,
+              main = "Pola Missing Data")
+  }
+  
+  # Missing data summary table
+  missing_summary <- data %>%
+    summarise_all(~sum(is.na(.))) %>%
+    gather(key = "Variabel", value = "Missing_Count") %>%
+    filter(Missing_Count > 0) %>%
+    mutate(Missing_Percent = round(Missing_Count / n_rows * 100, 2)) %>%
+    arrange(desc(Missing_Count))
+  
+  if (nrow(missing_summary) > 0) {
+    kable(missing_summary,
+          booktabs = TRUE,
+          caption = "Rangkuman Missing Data per Variabel") %>%
+      kable_styling(latex_options = c("striped", "hold_position")) %>%
+      row_spec(0, bold = TRUE, background = "#C73E1D", color = "white")
+  }
+} else {
+  cat("**Excellent!** Dataset tidak mengandung missing data.\n\n")
+  cat("Ini merupakan kondisi ideal untuk analisis statistik langsung tanpa preprocessing tambahan.")
+}
+```
+
+## Deteksi Outlier Komprehensif
+
+```{r outlier-detection}
+if (length(numeric_vars) > 0) {
+  outlier_summary <- data.frame()
+  
+  for (var in numeric_vars) {
+    x <- data[[var]][!is.na(data[[var]])]
+    if (length(x) > 0) {
+      Q1 <- quantile(x, 0.25)
+      Q3 <- quantile(x, 0.75)
+      IQR_val <- Q3 - Q1
+      
+      lower_bound <- Q1 - 1.5 * IQR_val
+      upper_bound <- Q3 + 1.5 * IQR_val
+      
+      outliers <- x[x < lower_bound | x > upper_bound]
+      
+      outlier_summary <- rbind(outlier_summary, data.frame(
+        Variabel = var,
+        Total_Outliers = length(outliers),
+        Persen_Outliers = round(length(outliers) / length(x) * 100, 2),
+        Lower_Bound = round(lower_bound, 3),
+        Upper_Bound = round(upper_bound, 3),
+        Outlier_Severity = ifelse(length(outliers) / length(x) > 0.1, "High", 
+                                 ifelse(length(outliers) / length(x) > 0.05, "Moderate", "Low"))
+      ))
+    }
+  }
+  
+  kable(outlier_summary,
+        booktabs = TRUE,
+        caption = "Analisis Outlier Menggunakan Metode IQR") %>%
+    kable_styling(latex_options = c("striped", "hold_position", "scale_down")) %>%
+    row_spec(0, bold = TRUE, background = "#4E8098", color = "white") %>%
+    column_spec(7, color = ifelse(outlier_summary$Outlier_Severity == "High", "red",
+                                 ifelse(outlier_summary$Outlier_Severity == "Moderate", "orange", "green")))
+}
+```
+
+\newpage
+
+# Statistik Deskriptif Komprehensif
+
+```{r descriptive-stats}
+if (length(numeric_vars) > 0) {
+  # Calculate comprehensive descriptive statistics
+  desc_stats <- data.frame()
+  
+  for (var in numeric_vars) {
+    x <- data[[var]][!is.na(data[[var]])]
+    if (length(x) > 0) {
+      desc_stats <- rbind(desc_stats, data.frame(
+        Variabel = var,
+        N = length(x),
+        Mean = round(mean(x), 3),
+        Median = round(median(x), 3),
+        SD = round(sd(x), 3),
+        CV = round(sd(x) / mean(x) * 100, 2),
+        Min = round(min(x), 3),
+        Max = round(max(x), 3),
+        Q1 = round(quantile(x, 0.25), 3),
+        Q3 = round(quantile(x, 0.75), 3),
+        Skewness = round(skewness(x), 3),
+        Kurtosis = round(kurtosis(x), 3)
+      ))
+    }
+  }
+  
+  kable(desc_stats,
+        booktabs = TRUE,
+        caption = "Statistik Deskriptif Komprehensif untuk Variabel Numerik") %>%
+    kable_styling(latex_options = c("striped", "hold_position", "scale_down"), 
+                  font_size = 9) %>%
+    row_spec(0, bold = TRUE, background = "#2E86AB", color = "white")
+}
+```
+
+## Interpretasi Distribusi
+
+```{r distribution-interpretation}
+if (length(numeric_vars) > 0 && exists("desc_stats")) {
+  # Interpretation of distribution characteristics
+  interpretation <- desc_stats %>%
+    mutate(
+      Skew_Interpretation = case_when(
+        abs(Skewness) < 0.5 ~ "Simetris",
+        abs(Skewness) < 1.0 ~ "Moderat Skewed",
+        TRUE ~ "Highly Skewed"
+      ),
+      Kurt_Interpretation = case_when(
+        Kurtosis < 2 ~ "Platykurtic (Flat)",
+        Kurtosis > 4 ~ "Leptokurtic (Peaked)",
+        TRUE ~ "Mesokurtic (Normal)"
+      ),
+      CV_Interpretation = case_when(
+        CV < 15 ~ "Variabilitas Rendah",
+        CV < 35 ~ "Variabilitas Sedang",
+        TRUE ~ "Variabilitas Tinggi"
+      )
+    ) %>%
+    select(Variabel, Skew_Interpretation, Kurt_Interpretation, CV_Interpretation)
+  
+  kable(interpretation,
+        booktabs = TRUE,
+        caption = "Interpretasi Karakteristik Distribusi",
+        col.names = c("Variabel", "Skewness", "Kurtosis", "Coefficient of Variation")) %>%
+    kable_styling(latex_options = c("striped", "hold_position")) %>%
+    row_spec(0, bold = TRUE, background = "#90A959", color = "white")
+}
+```
+
+\newpage
+
+# Analisis Korelasi Multivariat
+
+```{r correlation-analysis, fig.cap="Matriks Korelasi Antar Variabel Numerik", fig.height=8}
+if (length(numeric_vars) >= 2) {
+  # Calculate correlation matrix
+  numeric_data <- data[numeric_vars]
+  numeric_data_complete <- numeric_data[complete.cases(numeric_data), ]
+  
+  if (nrow(numeric_data_complete) > 1 && ncol(numeric_data_complete) >= 2) {
+    cor_matrix <- cor(numeric_data_complete)
+    
+    # Create correlation plot
+    corrplot(cor_matrix, 
+             method = "color", 
+             type = "upper",
+             order = "hclust",
+             tl.cex = 0.8,
+             tl.col = "black",
+             addCoef.col = "black",
+             number.cex = 0.7,
+             col = colorRampPalette(c("#C73E1D", "white", "#2E86AB"))(100),
+             title = "Matriks Korelasi Pearson",
+             mar = c(0,0,1,0))
+    
+    # Strong correlations summary
+    strong_cor <- which(abs(cor_matrix) > 0.7 & abs(cor_matrix) < 1, arr.ind = TRUE)
+    
+    if (nrow(strong_cor) > 0) {
+      strong_cor_df <- data.frame()
+      for (i in 1:nrow(strong_cor)) {
+        var1 <- rownames(cor_matrix)[strong_cor[i,1]]
+        var2 <- colnames(cor_matrix)[strong_cor[i,2]]
+        cor_val <- cor_matrix[strong_cor[i,1], strong_cor[i,2]]
+        
+        strong_cor_df <- rbind(strong_cor_df, data.frame(
+          Variable_1 = var1,
+          Variable_2 = var2,
+          Correlation = round(cor_val, 3),
+          Strength = ifelse(abs(cor_val) >= 0.9, "Very Strong",
+                           ifelse(abs(cor_val) >= 0.7, "Strong", "Moderate")),
+          Direction = ifelse(cor_val > 0, "Positive", "Negative")
+        ))
+      }
+      
+      kable(strong_cor_df,
+            booktabs = TRUE,
+            caption = "Korelasi Kuat (|r| > 0.7) Antar Variabel") %>%
+        kable_styling(latex_options = c("striped", "hold_position")) %>%
+        row_spec(0, bold = TRUE, background = "#A23B72", color = "white")
+    }
+  }
+}
+```
+
+\newpage
+
+# Rekomendasi dan Langkah Selanjutnya
+
+## Rekomendasi Preprocessing
+
+```{r preprocessing-recommendations}
+recommendations_detail <- c()
+
+# Missing data recommendations
+if (missing_percent > 0) {
+  if (missing_percent < 5) {
+    recommendations_detail <- c(recommendations_detail, 
+                               "**Missing Data (Low Impact):** Gunakan listwise deletion atau mean/median imputation")
+  } else if (missing_percent < 20) {
+    recommendations_detail <- c(recommendations_detail,
+                               "**Missing Data (Moderate Impact):** Implementasi multiple imputation atau advanced imputation methods")
+  } else {
+    recommendations_detail <- c(recommendations_detail,
+                               "**Missing Data (High Impact):** Evaluasi ulang kualitas data collection, pertimbangkan data cleaning komprehensif")
+  }
+}
+
+# Outlier recommendations
+if (exists("outlier_summary") && any(outlier_summary$Outlier_Severity %in% c("High", "Moderate"))) {
+  recommendations_detail <- c(recommendations_detail,
+                             "**Outliers:** Investigasi outliers dengan Outlier_Severity 'High' atau 'Moderate', pertimbangkan transformasi atau robust methods")
+}
+
+# Normality recommendations
+if (exists("desc_stats") && any(abs(desc_stats$Skewness) > 1)) {
+  recommendations_detail <- c(recommendations_detail,
+                             "**Distribusi Non-Normal:** Pertimbangkan transformasi Box-Cox, log, atau square root untuk variabel dengan high skewness")
+}
+
+# Multicollinearity recommendations
+if (exists("strong_cor_df") && any(abs(strong_cor_df$Correlation) > 0.9)) {
+  recommendations_detail <- c(recommendations_detail,
+                             "**Multikolinearitas:** Evaluasi variabel dengan korelasi sangat tinggi (|r| > 0.9) untuk redundancy")
+}
+
+if (length(recommendations_detail) == 0) {
+  recommendations_detail <- "**Dataset Optimal:** Data dalam kondisi excellent untuk analisis statistik langsung"
+}
+```
+
+`r paste(recommendations_detail, collapse = "\n\n")`
+
+## Analisis Statistik yang Disarankan
+
+Berdasarkan karakteristik dataset, analisis berikut direkomendasikan:
+
+```{r suggested-analyses}
+suggested_analyses <- c()
+
+if (length(numeric_vars) >= 2) {
+  suggested_analyses <- c(suggested_analyses, "**Analisis Korelasi:** Investigasi hubungan antar variabel numerik")
+}
+
+if (length(numeric_vars) >= 3) {
+  suggested_analyses <- c(suggested_analyses, "**Principal Component Analysis (PCA):** Reduksi dimensi dan identifikasi pola")
+}
+
+if (length(categorical_vars) >= 1 && length(numeric_vars) >= 1) {
+  suggested_analyses <- c(suggested_analyses, "**ANOVA/t-test:** Perbandingan rata-rata antar grup")
+}
+
+if (n_rows >= 50 && length(numeric_vars) >= 2) {
+  suggested_analyses <- c(suggested_analyses, "**Regresi Linear:** Analisis prediktif dan hubungan kausal")
+}
+
+if (length(categorical_vars) >= 2) {
+  suggested_analyses <- c(suggested_analyses, "**Chi-square Test:** Analisis asosiasi antar variabel kategorikal")
+}
+
+if (length(suggested_analyses) == 0) {
+  suggested_analyses <- "Dataset memerlukan preprocessing lebih lanjut sebelum analisis statistik"
+}
+```
+
+`r paste(suggested_analyses, collapse = "\n\n")`
+
+## Quality Score dan Rating
+
+```{r quality-score}
+# Calculate overall quality score
+quality_metrics <- list(
+  missing_score = ifelse(missing_percent < 5, 100, 
+                        ifelse(missing_percent < 10, 80,
+                              ifelse(missing_percent < 20, 60, 40))),
+  size_score = ifelse(n_rows >= 100, 100,
+                     ifelse(n_rows >= 50, 80,
+                           ifelse(n_rows >= 30, 60, 40))),
+  completeness_score = ifelse(n_cols >= 5, 100,
+                             ifelse(n_cols >= 3, 80, 60))
+)
+
+overall_score <- round(mean(c(quality_metrics$missing_score, 
+                             quality_metrics$size_score, 
+                             quality_metrics$completeness_score)), 1)
+
+rating <- ifelse(overall_score >= 90, "A (Excellent)",
+                ifelse(overall_score >= 80, "B (Good)",
+                      ifelse(overall_score >= 70, "C (Fair)",
+                            ifelse(overall_score >= 60, "D (Poor)", "F (Critical)"))))
+
+score_table <- data.frame(
+  "Metrik" = c("Missing Data Quality", "Sample Size Adequacy", "Variable Completeness", "Overall Score"),
+  "Score" = c(quality_metrics$missing_score, quality_metrics$size_score, 
+              quality_metrics$completeness_score, overall_score),
+  "Rating" = c(
+    ifelse(quality_metrics$missing_score >= 90, "Excellent", "Good"),
+    ifelse(quality_metrics$size_score >= 90, "Excellent", "Good"),
+    ifelse(quality_metrics$completeness_score >= 90, "Excellent", "Good"),
+    rating
+  )
+)
+
+kable(score_table,
+      booktabs = TRUE,
+      caption = "Data Quality Assessment Score") %>%
+  kable_styling(latex_options = c("striped", "hold_position")) %>%
+  row_spec(0, bold = TRUE, background = "#2E86AB", color = "white") %>%
+  row_spec(4, bold = TRUE, background = "#f0f8ff")
+```
+
+\begin{center}
+\colorbox{primaryblue!20}{
+\begin{minipage}{0.8\textwidth}
+\centering
+\textbf{\Large Dataset Quality Rating: `r rating`} \\
+\vspace{0.2cm}
+\textbf{Overall Score: `r overall_score`/100}
+\end{minipage}
+}
+\end{center}
+
+---
+
+**Catatan Metodologis:** Laporan ini menggunakan standar industri untuk evaluasi kualitas data dan mengikuti best practices dalam data preprocessing. Semua rekomendasi didasarkan pada karakteristik statistik objective dari dataset.
+
+**Untuk analisis lanjutan:** Gunakan fitur-fitur analisis yang tersedia di AXIS Dashboard setelah implementasi rekomendasi preprocessing.
+
+\vspace{1cm}
+\begin{center}
+\textit{Generated by AXIS Dashboard - Advanced eXploratory \& Inferential Statistics}
+\end{center}
