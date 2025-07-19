@@ -1,619 +1,711 @@
 # AXIS - Advanced Exploratory Inference Statistics Dashboard
 # Server Logic (server.R)
-# FINAL VERSION - READY TO USE
-# DOWNLOADS: PDF & PNG ONLY
 
 function(input, output, session) {
   
-  # Reactive values to store data
+  # Reactive values for storing data and models
   values <- reactiveValues(
     raw_data = NULL,
     processed_data = NULL,
-    current_regression = NULL
+    current_model = NULL
   )
   
-  # File upload handler
+  # Helper function for string repetition
+  strrep <- function(s, times) {
+    paste(rep(s, times), collapse = "")
+  }
+  
+  # File upload and data processing
   observeEvent(input$file, {
     req(input$file)
     
     tryCatch({
       ext <- tools::file_ext(input$file$datapath)
       
-      if (ext == "csv") {
-        values$raw_data <- read.csv(
-          input$file$datapath,
-          header = input$header,
-          sep = input$sep,
-          quote = input$quote,
-          stringsAsFactors = FALSE,
-          fileEncoding = "UTF-8"
-        )
-      } else if (ext %in% c("xlsx", "xls")) {
+      if (ext %in% c("csv", "txt")) {
+        values$raw_data <- readr::read_csv(input$file$datapath, 
+                                          locale = readr::locale(encoding = "UTF-8"),
+                                          show_col_types = FALSE)
+      } else if (ext %in% c("xls", "xlsx")) {
         if (requireNamespace("readxl", quietly = TRUE)) {
           values$raw_data <- readxl::read_excel(input$file$datapath)
         } else {
-          showNotification("Package 'readxl' tidak tersedia. Install terlebih dahulu.", type = "error")
+          showNotification("readxl package required for Excel files", type = "error")
           return()
         }
+      } else {
+        showNotification("Unsupported file format. Please use CSV or Excel files.", type = "error")
+        return()
       }
       
+      # Clean column names and process data
+      values$raw_data <- clean_column_names(values$raw_data)
       values$processed_data <- values$raw_data
-      showNotification("Data berhasil diupload!", type = "success")
+      
+      # Update variable choices
+      numeric_vars <- names(values$processed_data)[sapply(values$processed_data, is.numeric)]
+      all_vars <- names(values$processed_data)
+      
+      updateSelectInput(session, "explore_variable", choices = all_vars)
+      updateSelectInput(session, "dependent_var", choices = numeric_vars)
+      updateSelectInput(session, "independent_vars", choices = numeric_vars)
+      
+      showNotification("Data uploaded successfully!", type = "success")
       
     }, error = function(e) {
       showNotification(paste("Error uploading file:", e$message), type = "error")
     })
   })
   
-  # Check if file is uploaded
-  output$fileUploaded <- reactive({
-    return(!is.null(values$processed_data))
+  # Show import options conditionally
+  output$show_import_options <- reactive({
+    !is.null(input$file)
   })
-  outputOptions(output, 'fileUploaded', suspendWhenHidden = FALSE)
+  outputOptions(output, "show_import_options", suspendWhenHidden = FALSE)
   
-  # Navigation to data management
-  observeEvent(input$goToData, {
-    updateTabItems(session, "tabs", "data_management")
-  })
-  
-  # Reset data
-  observeEvent(input$resetData, {
-    values$raw_data <- NULL
-    values$processed_data <- NULL
-    values$current_regression <- NULL
-    showNotification("Data telah direset!", type = "info")
+  # Home tab statistics
+  output$home_total_observations <- renderText({
+    if (is.null(values$processed_data)) return("0")
+    format(nrow(values$processed_data), big.mark = ",")
   })
   
-  # Update variable choices
-  observe({
-    if (!is.null(values$processed_data)) {
-      numeric_vars <- names(values$processed_data)[sapply(values$processed_data, is.numeric)]
-      all_vars <- names(values$processed_data)
-      
-      updateSelectInput(session, "variableSelect", choices = all_vars)
-      updateSelectInput(session, "dependentVar", choices = numeric_vars)
-      updateSelectInput(session, "independentVars", choices = numeric_vars)
-    }
+  output$home_total_variables <- renderText({
+    if (is.null(values$processed_data)) return("0")
+    as.character(ncol(values$processed_data))
   })
   
-  # Value boxes for home page
-  output$totalDatasets <- renderValueBox({
-    valueBox(
-      value = if (is.null(values$processed_data)) 0 else 1,
-      subtitle = "Dataset Aktif",
-      icon = icon("database"),
-      color = "blue"
-    )
+  output$home_numeric_variables <- renderText({
+    if (is.null(values$processed_data)) return("0")
+    numeric_count <- sum(sapply(values$processed_data, is.numeric))
+    as.character(numeric_count)
   })
   
-  output$totalVariables <- renderValueBox({
-    valueBox(
-      value = if (is.null(values$processed_data)) 0 else ncol(values$processed_data),
-      subtitle = "Total Variabel",
-      icon = icon("list"),
-      color = "green"
-    )
-  })
-  
-  output$totalObservations <- renderValueBox({
-    valueBox(
-      value = if (is.null(values$processed_data)) 0 else nrow(values$processed_data),
-      subtitle = "Total Observasi",
-      icon = icon("table"),
-      color = "yellow"
-    )
-  })
-  
-  output$dataQuality <- renderValueBox({
-    if (is.null(values$processed_data)) {
-      quality_score <- 0
-    } else {
-      missing_percent <- sum(is.na(values$processed_data)) / (nrow(values$processed_data) * ncol(values$processed_data)) * 100
-      quality_score <- max(0, 100 - missing_percent)
-    }
-    
-    valueBox(
-      value = paste0(round(quality_score, 1), "%"),
-      subtitle = "Kualitas Data",
-      icon = icon("check-circle"),
-      color = if (quality_score >= 80) "green" else if (quality_score >= 60) "yellow" else "red"
-    )
+  output$home_missing_percent <- renderText({
+    if (is.null(values$processed_data)) return("0%")
+    total_cells <- nrow(values$processed_data) * ncol(values$processed_data)
+    missing_cells <- sum(is.na(values$processed_data))
+    paste0(round((missing_cells / total_cells) * 100, 1), "%")
   })
   
   # Data information output
-  output$dataInfo <- renderText({
-    if (is.null(values$processed_data)) return("Belum ada data yang diupload.")
+  output$data_info <- renderText({
+    if (is.null(values$processed_data)) {
+      return("No data uploaded yet.")
+    }
     
-    data <- values$processed_data
-    paste(
-      "Dimensi Data:", nrow(data), "baris x", ncol(data), "kolom\n",
-      "Variabel Numerik:", sum(sapply(data, is.numeric)), "\n",
-      "Variabel Kategorikal:", sum(sapply(data, function(x) is.character(x) || is.factor(x))), "\n",
-      "Total Missing Values:", sum(is.na(data)), "\n",
-      "Ukuran File:", format(object.size(data), units = "Kb")
+    info <- paste(
+      "Dataset Information:",
+      paste("Rows:", nrow(values$processed_data)),
+      paste("Columns:", ncol(values$processed_data)),
+      paste("Numeric variables:", sum(sapply(values$processed_data, is.numeric))),
+      paste("Character variables:", sum(sapply(values$processed_data, is.character))),
+      paste("Factor variables:", sum(sapply(values$processed_data, is.factor))),
+      sep = "\n"
     )
+    
+    return(info)
   })
   
-  # Data quality information
-  output$dataQualityInfo <- renderText({
-    if (is.null(values$processed_data)) return("Belum ada data untuk dianalisis.")
+  # Data quality output
+  output$data_quality <- renderText({
+    if (is.null(values$processed_data)) {
+      return("No data uploaded yet.")
+    }
     
-    assessment <- assess_data_quality(values$processed_data)
+    quality <- assess_data_quality(values$processed_data)
     
-    paste(
-      "Missing Data:", assessment$missing_percent, "%\n",
-      "Variabel dengan Missing > 10%:", 
-      sum(assessment$missing_percent_by_var > 10), "\n",
-      "Total Outliers Terdeteksi:", 
-      if (length(assessment$outliers) > 0) sum(unlist(assessment$outliers)) else 0, "\n",
-      "Rekomendasi:", 
-      if (assessment$missing_percent < 5) "Data berkualitas baik" 
-      else if (assessment$missing_percent < 15) "Perlu cleaning ringan"
-      else "Perlu cleaning intensif"
+    info <- paste(
+      "Data Quality Assessment:",
+      paste("Total missing values:", sum(quality$missing_summary$Missing_Count)),
+      paste("Duplicate rows:", quality$duplicate_rows),
+      paste("Variables with missing data:", sum(quality$missing_summary$Missing_Count > 0)),
+      "",
+      "Missing data by variable:",
+      sep = "\n"
     )
+    
+    # Add missing data details
+    missing_details <- quality$missing_summary[quality$missing_summary$Missing_Count > 0, ]
+    if (nrow(missing_details) > 0) {
+      for (i in 1:nrow(missing_details)) {
+        info <- paste(info, 
+                     paste0("  ", missing_details$Variable[i], ": ", 
+                           missing_details$Missing_Count[i], " (", 
+                           missing_details$Missing_Percent[i], "%)"),
+                     sep = "\n")
+      }
+    } else {
+      info <- paste(info, "  No missing data detected", sep = "\n")
+    }
+    
+    return(info)
   })
   
   # Data preview table
-  output$dataPreview <- DT::renderDataTable({
-    if (is.null(values$processed_data)) return(NULL)
+  output$data_preview <- DT::renderDataTable({
+    if (is.null(values$processed_data)) {
+      return(data.frame("Message" = "No data uploaded yet."))
+    }
     
     DT::datatable(
       values$processed_data,
       options = list(
         scrollX = TRUE,
         pageLength = 10,
-        autoWidth = TRUE
+        lengthMenu = c(5, 10, 25, 50),
+        dom = 'Bfrtip',
+        buttons = c('copy', 'csv', 'excel')
       ),
-      class = 'cell-border stripe'
+      class = "display nowrap compact",
+      filter = "top",
+      selection = "multiple"
     )
   })
   
-  # Variable summary
-  output$variableSummary <- renderText({
-    if (is.null(values$processed_data) || is.null(input$variableSelect)) return("Pilih variabel untuk analisis.")
-    
-    var_data <- values$processed_data[[input$variableSelect]]
-    
-    if (is.numeric(var_data)) {
-      paste(
-        "Tipe Data: Numerik\n",
-        "N:", length(var_data[!is.na(var_data)]), "\n",
-        "Missing:", sum(is.na(var_data)), "\n",
-        "Mean:", round(mean(var_data, na.rm = TRUE), 4), "\n",
-        "Median:", round(median(var_data, na.rm = TRUE), 4), "\n",
-        "Std Dev:", round(sd(var_data, na.rm = TRUE), 4), "\n",
-        "Min:", round(min(var_data, na.rm = TRUE), 4), "\n",
-        "Max:", round(max(var_data, na.rm = TRUE), 4)
-      )
-    } else {
-      unique_vals <- length(unique(var_data[!is.na(var_data)]))
-      paste(
-        "Tipe Data: Kategorikal\n",
-        "N:", length(var_data[!is.na(var_data)]), "\n",
-        "Missing:", sum(is.na(var_data)), "\n",
-        "Unique Values:", unique_vals, "\n",
-        "Mode:", names(sort(table(var_data), decreasing = TRUE))[1]
-      )
+  # Variable summary for exploration
+  output$variable_summary <- renderText({
+    if (is.null(values$processed_data) || is.null(input$explore_variable)) {
+      return("No variable selected or data not available.")
     }
-  })
-  
-  # Variable plot
-  output$variablePlot <- plotly::renderPlotly({
-    if (is.null(values$processed_data) || is.null(input$variableSelect)) return(NULL)
     
-    var_data <- values$processed_data[[input$variableSelect]]
-    var_name <- input$variableSelect
+    var_name <- input$explore_variable
+    if (!var_name %in% names(values$processed_data)) {
+      return("Selected variable not found in dataset.")
+    }
+    
+    var_data <- values$processed_data[[var_name]]
     
     if (is.numeric(var_data)) {
-      p <- ggplot(data.frame(x = var_data), aes(x = x)) +
-        geom_histogram(bins = 30, fill = statistical_colors$primary, alpha = 0.7, color = "white") +
-        labs(title = paste("Distribusi", var_name), x = var_name, y = "Frekuensi") +
-        theme_axis()
-    } else {
-      freq_table <- table(var_data)
-      df_plot <- data.frame(
-        category = names(freq_table),
-        frequency = as.numeric(freq_table)
+      stats <- list(
+        N = length(var_data),
+        Missing = sum(is.na(var_data)),
+        Mean = round(mean(var_data, na.rm = TRUE), 3),
+        Median = round(median(var_data, na.rm = TRUE), 3),
+        SD = round(sd(var_data, na.rm = TRUE), 3),
+        Min = round(min(var_data, na.rm = TRUE), 3),
+        Max = round(max(var_data, na.rm = TRUE), 3),
+        Q1 = round(quantile(var_data, 0.25, na.rm = TRUE), 3),
+        Q3 = round(quantile(var_data, 0.75, na.rm = TRUE), 3)
       )
       
-      p <- ggplot(df_plot, aes(x = reorder(category, -frequency), y = frequency)) +
-        geom_bar(stat = "identity", fill = statistical_colors$secondary, alpha = 0.8) +
-        labs(title = paste("Distribusi", var_name), x = var_name, y = "Frekuensi") +
+      summary_text <- paste(
+        paste("Variable:", var_name),
+        paste("Type: Numeric"),
+        "",
+        "Descriptive Statistics:",
+        paste("N =", stats$N),
+        paste("Missing =", stats$Missing),
+        paste("Mean =", stats$Mean),
+        paste("Median =", stats$Median),
+        paste("SD =", stats$SD),
+        paste("Min =", stats$Min),
+        paste("Max =", stats$Max),
+        paste("Q1 =", stats$Q1),
+        paste("Q3 =", stats$Q3),
+        sep = "\n"
+      )
+      
+    } else {
+      # For non-numeric variables
+      freq_table <- table(var_data, useNA = "ifany")
+      top_values <- head(sort(freq_table, decreasing = TRUE), 10)
+      
+      summary_text <- paste(
+        paste("Variable:", var_name),
+        paste("Type:", class(var_data)[1]),
+        paste("N =", length(var_data)),
+        paste("Missing =", sum(is.na(var_data))),
+        paste("Unique values =", length(unique(var_data))),
+        "",
+        "Top 10 most frequent values:",
+        paste(names(top_values), ":", top_values, collapse = "\n"),
+        sep = "\n"
+      )
+    }
+    
+    return(summary_text)
+  })
+  
+  # Interactive plot for variable exploration
+  output$interactive_plot <- plotly::renderPlotly({
+    if (is.null(values$processed_data) || is.null(input$explore_variable)) {
+      return(plotly::plot_ly() %>% plotly::add_text(text = "No data or variable selected", x = 0.5, y = 0.5))
+    }
+    
+    var_name <- input$explore_variable
+    var_data <- values$processed_data[[var_name]]
+    
+    if (is.numeric(var_data)) {
+      # Create histogram for numeric variables
+      p <- ggplot(data.frame(x = var_data), aes(x = x)) +
+        geom_histogram(fill = axis_colors[1], alpha = 0.7, bins = 30) +
+        labs(title = paste("Distribution of", var_name),
+             x = var_name,
+             y = "Frequency") +
+        theme_axis()
+      
+    } else {
+      # Create bar chart for categorical variables
+      freq_data <- data.frame(table(var_data))
+      names(freq_data) <- c("Category", "Frequency")
+      
+      p <- ggplot(freq_data, aes(x = Category, y = Frequency)) +
+        geom_bar(stat = "identity", fill = axis_colors[2], alpha = 0.7) +
+        labs(title = paste("Frequency of", var_name),
+             x = var_name,
+             y = "Frequency") +
         theme_axis() +
         theme(axis.text.x = element_text(angle = 45, hjust = 1))
     }
     
-    plotly::ggplotly(p)
+    plotly::ggplotly(p) %>%
+      plotly::layout(height = 400)
+  })
+  
+  # Descriptive statistics table
+  output$descriptive_stats <- DT::renderDataTable({
+    if (is.null(values$processed_data)) {
+      return(data.frame("Message" = "No data available."))
+    }
+    
+    stats_df <- calculate_descriptive_stats(values$processed_data)
+    
+    if (nrow(stats_df) == 0) {
+      return(data.frame("Message" = "No numeric variables found for analysis."))
+    }
+    
+    DT::datatable(
+      stats_df,
+      options = list(
+        scrollX = TRUE,
+        pageLength = 10,
+        dom = 'Bfrtip',
+        buttons = c('copy', 'csv')
+      ),
+      class = "display nowrap compact"
+    ) %>%
+      DT::formatRound(columns = c("Mean", "Median", "SD", "Min", "Max", "Skewness", "Kurtosis"), digits = 3)
   })
   
   # Distribution analysis
-  output$distributionAnalysis <- renderText({
-    if (is.null(values$processed_data) || is.null(input$variableSelect)) return("Pilih variabel untuk analisis.")
-    
-    var_data <- values$processed_data[[input$variableSelect]]
-    
-    if (is.numeric(var_data)) {
-      var_clean <- var_data[!is.na(var_data)]
-      
-      # Normality tests
-      shapiro_test <- if (length(var_clean) <= 5000) shapiro.test(var_clean) else NULL
-      
-      skewness_val <- if (requireNamespace("moments", quietly = TRUE)) {
-        moments::skewness(var_clean)
-      } else NA
-      
-      kurtosis_val <- if (requireNamespace("moments", quietly = TRUE)) {
-        moments::kurtosis(var_clean)
-      } else NA
-      
-      paste(
-        "=== ANALISIS DISTRIBUSI ===\n",
-        "Skewness:", round(skewness_val, 4), 
-        if (!is.na(skewness_val)) {
-          if (abs(skewness_val) < 0.5) "(Simetris)" 
-          else if (skewness_val > 0) "(Right-skewed)" 
-          else "(Left-skewed)"
-        } else "", "\n",
-        "Kurtosis:", round(kurtosis_val, 4), 
-        if (!is.na(kurtosis_val)) {
-          if (kurtosis_val < 3) "(Platykurtic)" 
-          else if (kurtosis_val > 3) "(Leptokurtic)" 
-          else "(Mesokurtic)"
-        } else "", "\n",
-        if (!is.null(shapiro_test)) {
-          paste("Shapiro-Wilk Test p-value:", format_pvalue(shapiro_test$p.value), "\n",
-                "Normalitas:", if (shapiro_test$p.value > 0.05) "Terdistribusi normal" else "Tidak normal")
-        } else {
-          "Shapiro-Wilk Test: N terlalu besar (>5000)"
-        }
-      )
-    } else {
-      freq_table <- table(var_data, useNA = "ifany")
-      mode_val <- names(freq_table)[which.max(freq_table)]
-      
-      paste(
-        "=== ANALISIS KATEGORIKAL ===\n",
-        "Kategori Terbanyak:", mode_val, "\n",
-        "Frekuensi Mode:", max(freq_table), "\n",
-        "Distribusi:\n",
-        paste(names(freq_table), ":", freq_table, collapse = "\n")
-      )
+  output$distribution_analysis <- renderText({
+    if (is.null(values$processed_data) || is.null(input$explore_variable)) {
+      return("No variable selected or data not available.")
     }
+    
+    var_name <- input$explore_variable
+    var_data <- values$processed_data[[var_name]]
+    
+    if (!is.numeric(var_data)) {
+      return("Distribution analysis is only available for numeric variables.")
+    }
+    
+    # Normality test
+    normality_result <- test_normality(var_data, "shapiro")
+    
+    # Outlier detection
+    outliers <- detect_outliers(var_data, "iqr")
+    n_outliers <- sum(outliers, na.rm = TRUE)
+    
+    # Transformation suggestions
+    transform_suggest <- suggest_transformations(var_data)
+    
+    analysis_text <- paste(
+      "Distribution Analysis:",
+      "",
+      paste("Normality Test (", normality_result$method, "):", sep = ""),
+      paste("  Statistic =", round(normality_result$statistic, 4)),
+      paste("  p-value =", format_p_value(normality_result$p_value)),
+      ifelse(normality_result$p_value < 0.05, 
+             "  Result: Non-normal distribution", 
+             "  Result: Normal distribution"),
+      "",
+      "Outlier Detection (IQR method):",
+      paste("  Number of outliers:", n_outliers),
+      paste("  Percentage of outliers:", round((n_outliers / length(var_data)) * 100, 2), "%"),
+      "",
+      "Transformation Suggestions:",
+      paste(" ", transform_suggest),
+      sep = "\n"
+    )
+    
+    return(analysis_text)
   })
   
   # Regression analysis
-  observeEvent(input$runRegression, {
-    req(input$dependentVar, input$independentVars)
+  observeEvent(input$run_regression, {
+    if (is.null(values$processed_data) || is.null(input$dependent_var) || 
+        length(input$independent_vars) == 0) {
+      showNotification("Please select dependent and independent variables.", type = "warning")
+      return()
+    }
     
     tryCatch({
-      formula_str <- paste(input$dependentVar, "~", paste(input$independentVars, collapse = " + "))
-      model <- lm(as.formula(formula_str), data = values$processed_data)
-      values$current_regression <- model
+      # Create formula
+      formula_str <- paste(input$dependent_var, "~", paste(input$independent_vars, collapse = " + "))
+      formula_obj <- as.formula(formula_str)
       
-      showNotification("Analisis regresi berhasil dijalankan!", type = "success")
+      # Fit model
+      model_data <- values$processed_data[complete.cases(values$processed_data[c(input$dependent_var, input$independent_vars)]), ]
+      values$current_model <- lm(formula_obj, data = model_data)
+      
+      showNotification("Regression analysis completed successfully!", type = "success")
+      
     }, error = function(e) {
-      showNotification(paste("Error dalam regresi:", e$message), type = "error")
+      showNotification(paste("Error in regression analysis:", e$message), type = "error")
     })
   })
   
-  # Regression results
-  output$regressionResults <- renderText({
-    if (is.null(values$current_regression)) return("Belum ada analisis regresi yang dijalankan.")
+  # Regression results output
+  output$regression_results <- renderText({
+    if (is.null(values$current_model)) {
+      return("No regression model fitted yet. Please run regression analysis first.")
+    }
     
-    model <- values$current_regression
-    model_summary <- summary(model)
+    model_summary <- summary(values$current_model)
     
-    paste(
-      "=== HASIL REGRESI LINEAR ===\n",
-      "Formula:", deparse(model$call$formula), "\n\n",
-      "R-squared:", round(model_summary$r.squared, 4), "\n",
-      "Adjusted R-squared:", round(model_summary$adj.r.squared, 4), "\n",
-      "F-statistic:", round(model_summary$fstatistic[1], 4), "\n",
-      "p-value:", format_pvalue(pf(model_summary$fstatistic[1], 
-                                 model_summary$fstatistic[2], 
-                                 model_summary$fstatistic[3], 
-                                 lower.tail = FALSE)), "\n\n",
-      "=== KOEFISIEN ===\n",
-      capture.output(print(round(model_summary$coefficients, 4))),
-      collapse = "\n"
+    # Extract key statistics
+    r_squared <- round(model_summary$r.squared, 4)
+    adj_r_squared <- round(model_summary$adj.r.squared, 4)
+    f_statistic <- round(model_summary$fstatistic[1], 4)
+    f_p_value <- format_p_value(pf(model_summary$fstatistic[1], 
+                                  model_summary$fstatistic[2], 
+                                  model_summary$fstatistic[3], 
+                                  lower.tail = FALSE))
+    
+    # Model metrics
+    metrics <- calculate_model_metrics(values$current_model)
+    
+    results_text <- paste(
+      "Regression Analysis Results:",
+      "",
+      "Model Formula:",
+      paste(" ", deparse(values$current_model$call$formula)),
+      "",
+      "Model Fit Statistics:",
+      paste("  R-squared =", r_squared),
+      paste("  Adjusted R-squared =", adj_r_squared),
+      paste("  F-statistic =", f_statistic),
+      paste("  p-value =", f_p_value),
+      "",
+      "Model Performance Metrics:",
+      paste("  AIC =", round(metrics$aic, 2)),
+      paste("  BIC =", round(metrics$bic, 2)),
+      paste("  RMSE =", round(metrics$rmse, 4)),
+      paste("  MAE =", round(metrics$mae, 4)),
+      "",
+      "Coefficients:",
+      sep = "\n"
     )
+    
+    # Add coefficient details
+    coef_summary <- model_summary$coefficients
+    for (i in 1:nrow(coef_summary)) {
+      coef_name <- rownames(coef_summary)[i]
+      estimate <- round(coef_summary[i, 1], 4)
+      std_error <- round(coef_summary[i, 2], 4)
+      t_value <- round(coef_summary[i, 3], 4)
+      p_value <- format_p_value(coef_summary[i, 4])
+      
+      results_text <- paste(results_text,
+                           paste("  ", coef_name, ":"),
+                           paste("    Estimate =", estimate),
+                           paste("    Std. Error =", std_error),
+                           paste("    t-value =", t_value),
+                           paste("    p-value =", p_value),
+                           sep = "\n")
+    }
+    
+    return(results_text)
   })
   
-  # Regression diagnostics plot
-  output$regressionDiagnostics <- renderPlot({
-    if (is.null(values$current_regression)) return(NULL)
-    
-    model <- values$current_regression
+  # Diagnostic plots
+  output$diagnostic_plots <- renderPlot({
+    if (is.null(values$current_model)) {
+      plot.new()
+      text(0.5, 0.5, "No regression model available.\nPlease run regression analysis first.", 
+           cex = 1.2, col = "gray50")
+      return()
+    }
     
     # Create diagnostic plots
-    par(mfrow = c(2, 2))
-    plot(model, which = 1:4)
+    par(mfrow = c(2, 2), mar = c(4, 4, 2, 1))
+    
+    # Residuals vs Fitted
+    plot(values$current_model, which = 1)
+    
+    # Q-Q plot
+    plot(values$current_model, which = 2)
+    
+    # Scale-Location
+    plot(values$current_model, which = 3)
+    
+    # Residuals vs Leverage
+    plot(values$current_model, which = 5)
   })
   
-  # 🎯 DOWNLOAD HANDLERS - PDF & PNG ONLY
+  # Regression summary table
+  output$regression_table <- DT::renderDataTable({
+    if (is.null(values$current_model)) {
+      return(data.frame("Message" = "No regression model available."))
+    }
+    
+    model_summary <- summary(values$current_model)
+    coef_df <- data.frame(
+      Variable = rownames(model_summary$coefficients),
+      Estimate = round(model_summary$coefficients[, 1], 4),
+      Std_Error = round(model_summary$coefficients[, 2], 4),
+      t_value = round(model_summary$coefficients[, 3], 4),
+      p_value = model_summary$coefficients[, 4],
+      Significance = ifelse(model_summary$coefficients[, 4] < 0.001, "***",
+                           ifelse(model_summary$coefficients[, 4] < 0.01, "**",
+                                 ifelse(model_summary$coefficients[, 4] < 0.05, "*",
+                                       ifelse(model_summary$coefficients[, 4] < 0.1, ".", ""))))
+    )
+    
+    DT::datatable(
+      coef_df,
+      options = list(
+        scrollX = TRUE,
+        pageLength = 10,
+        dom = 'Bfrtip',
+        buttons = c('copy', 'csv')
+      ),
+      class = "display nowrap compact"
+    ) %>%
+      DT::formatRound(columns = c("Estimate", "Std_Error", "t_value"), digits = 4) %>%
+      DT::formatRound(columns = "p_value", digits = 6)
+  })
   
-  # Download Data Management Report (PDF)
+  # Navigation buttons
+  observeEvent(input$start_analysis, {
+    updateTabItems(session, "sidebar", "data")
+  })
+  
+  observeEvent(input$go_to_explore, {
+    updateTabItems(session, "sidebar", "explore")
+  })
+  
+  observeEvent(input$go_to_regression, {
+    updateTabItems(session, "sidebar", "regression")
+  })
+  
+  # Reset data functionality
+  observeEvent(input$reset_data, {
+    values$raw_data <- NULL
+    values$processed_data <- NULL
+    values$current_model <- NULL
+    
+    updateSelectInput(session, "explore_variable", choices = character(0))
+    updateSelectInput(session, "dependent_var", choices = character(0))
+    updateSelectInput(session, "independent_vars", choices = character(0))
+    
+    showNotification("Data has been reset successfully.", type = "info")
+  })
+  
+  # Download handlers for PDF reports
+  
+  # Data Management Report
   output$download_data_report <- downloadHandler(
     filename = function() {
-      paste0("Laporan_Manajemen_Data_", format(Sys.Date(), "%Y%m%d"), ".pdf")
+      paste("AXIS_Data_Management_Report_", Sys.Date(), ".pdf", sep = "")
     },
     content = function(file) {
-      progress <- shiny::Progress$new()
-      on.exit(progress$close())
-      progress$set(message = "🔥 MEMBUAT PDF DENGAN PATH FIXED...", value = 0.1)
+      if (is.null(values$processed_data)) {
+        showNotification("No data available for report generation.", type = "warning")
+        return()
+      }
       
-      tryCatch({
-        # HARDCODED PATH BERDASARKAN SCREENSHOT ANDA
-        base_path <- "C:/Users/viery/OneDrive/Dokumen/College/KOMSTAT/AXIS_SECOND"
-        rmd_file <- file.path(base_path, "laporan_data_management.Rmd")
+      # Show progress
+      withProgress(message = 'Generating PDF report...', value = 0, {
+        incProgress(0.2, detail = "Preparing data...")
         
-        # CEK FILE ADA
-        if (!file.exists(rmd_file)) {
-          showNotification(paste("❌ FILE TIDAK ADA DI:", rmd_file), type = "error")
-          return(NULL)
-        }
+        # Hardcoded path - update this to match your exact directory
+        rmd_path <- "/home/msi/Documents/AXIS_shiny_app/data_management_report.Rmd"
         
-        progress$set(message = "📁 FILE RMD FOUND!", value = 0.2)
-        
-        # Prepare data
-        if (is.null(values$processed_data)) {
-          showNotification("❌ Tidak ada data untuk dianalisis!", type = "error")
-          return(NULL)
-        }
-        
-        temp_data_path <- tempfile(fileext = ".csv")
-        write.csv(values$processed_data, temp_data_path, row.names = FALSE, fileEncoding = "UTF-8")
-        progress$inc(0.2, detail = "Data CSV siap")
-        
-        # Set parameters
-        params <- list(
-          data_path = temp_data_path,
-          analysis_date = Sys.Date()
-        )
-        
-        # Copy RMD template ke temp directory
-        temp_report <- file.path(tempdir(), "laporan_data_management.Rmd")
-        file.copy(rmd_file, temp_report, overwrite = TRUE)
-        
-        progress$inc(0.2, detail = "Template copied")
-        
-        # Set working directory untuk render
-        old_wd <- getwd()
-        setwd(tempdir())
-        
-        progress$inc(0.1, detail = "🚀 RENDERING PDF...")
-        
-        # RENDER PDF
-        render_result <- tryCatch({
-          rmarkdown::render(
-            input = "laporan_data_management.Rmd",
-            output_file = basename(file),
-            params = params,
-            envir = new.env(parent = globalenv()),
-            quiet = FALSE
+        # Check if file exists, if not try alternative locations
+        if (!file.exists(rmd_path)) {
+          alternative_paths <- c(
+            "/home/msi/Documents/data_management_report.Rmd",
+            "/home/msi/AXIS_shiny_app/data_management_report.Rmd",
+            "data_management_report.Rmd",
+            "./reports/data_management_report.Rmd"
           )
           
-          # Copy hasil ke output file
-          final_file <- file.path(tempdir(), basename(file))
-          if (file.exists(final_file)) {
-            file.copy(final_file, file, overwrite = TRUE)
-            "SUCCESS"
-          } else {
-            "NO_OUTPUT_FILE"
+          for (alt_path in alternative_paths) {
+            if (file.exists(alt_path)) {
+              rmd_path <- alt_path
+              break
+            }
           }
-          
-        }, error = function(e) {
-          cat("RENDER ERROR:", e$message, "\n")
-          return(paste("RENDER_ERROR:", e$message))
-        }, finally = {
-          setwd(old_wd)
-        })
-        
-        progress$inc(0.3, detail = "✅ DONE!")
-        
-        # Check result
-        if (render_result == "SUCCESS" && file.exists(file)) {
-          showNotification("✅ PDF BERHASIL DIBUAT! REAL PDF FILE!", type = "success")
-        } else {
-          showNotification(paste("❌ RENDER GAGAL:", render_result), type = "error")
-          cat("=== DEBUG INFO ===\n")
-          cat("Render result:", render_result, "\n")
-          cat("File exists:", file.exists(file), "\n")
-          cat("Temp dir files:", paste(list.files(tempdir()), collapse = ", "), "\n")
         }
         
-        # Cleanup
-        unlink(temp_data_path)
+        incProgress(0.4, detail = "Processing analysis...")
         
-      }, error = function(e) {
-        showNotification(paste("❌ ERROR:", e$message), type = "error")
-        cat("FATAL ERROR:", e$message, "\n")
-        return(NULL)
+        tryCatch({
+          # Prepare data for report
+          report_data <- list(
+            data = values$processed_data,
+            data_info = assess_data_quality(values$processed_data),
+            descriptive_stats = calculate_descriptive_stats(values$processed_data)
+          )
+          
+          incProgress(0.6, detail = "Rendering report...")
+          
+          # Render the report
+          rmarkdown::render(
+            input = rmd_path,
+            output_file = file,
+            params = list(
+              data = report_data$data,
+              data_info = report_data$data_info,
+              descriptive_stats = report_data$descriptive_stats
+            ),
+            envir = new.env(),
+            quiet = TRUE
+          )
+          
+          incProgress(1, detail = "Report generated successfully!")
+          
+        }, error = function(e) {
+          showNotification(paste("Error generating report:", e$message), type = "error")
+          
+          # Create a simple fallback report
+          cat("AXIS Data Management Report\n",
+              "Generated on:", as.character(Sys.Date()), "\n",
+              "Error: Could not generate full report\n",
+              file = file)
+        })
       })
     },
     contentType = "application/pdf"
   )
   
-  # Download Variable Exploration Report (PDF)
-  output$downloadVarReport <- downloadHandler(
+  # Variable Exploration Report
+  output$download_explore_report <- downloadHandler(
     filename = function() {
-      var_name <- if (!is.null(input$variableSelect)) input$variableSelect else "Variable"
-      paste0("Laporan_Eksplorasi_", var_name, "_", format(Sys.Date(), "%Y%m%d"), ".pdf")
+      paste("AXIS_Variable_Exploration_Report_", Sys.Date(), ".pdf", sep = "")
     },
     content = function(file) {
-      progress <- shiny::Progress$new()
-      on.exit(progress$close())
-      progress$set(message = "🔥 MEMBUAT LAPORAN VARIABEL PDF...", value = 0.1)
+      if (is.null(values$processed_data)) {
+        showNotification("No data available for report generation.", type = "warning")
+        return()
+      }
       
-      tryCatch({
-        base_path <- "C:/Users/viery/OneDrive/Dokumen/College/KOMSTAT/AXIS_SECOND"
-        rmd_file <- file.path(base_path, "laporan_variable_exploration.Rmd")
+      withProgress(message = 'Generating exploration report...', value = 0, {
+        incProgress(0.2, detail = "Preparing analysis...")
         
-        if (!file.exists(rmd_file)) {
-          showNotification(paste("❌ FILE TIDAK ADA DI:", rmd_file), type = "error")
-          return(NULL)
-        }
+        # Hardcoded path
+        rmd_path <- "/home/msi/Documents/AXIS_shiny_app/variable_exploration_report.Rmd"
         
-        progress$set(message = "📁 FILE RMD FOUND!", value = 0.2)
-        
-        if (is.null(values$processed_data) || is.null(input$variableSelect)) {
-          showNotification("❌ Tidak ada data atau variabel yang dipilih!", type = "error")
-          return(NULL)
-        }
-        
-        temp_data_path <- tempfile(fileext = ".csv")
-        write.csv(values$processed_data, temp_data_path, row.names = FALSE, fileEncoding = "UTF-8")
-        progress$inc(0.2, detail = "Data CSV siap")
-        
-        params <- list(
-          data_path = temp_data_path,
-          variable_name = input$variableSelect,
-          analysis_date = Sys.Date()
-        )
-        
-        temp_report <- file.path(tempdir(), "laporan_variable_exploration.Rmd")
-        file.copy(rmd_file, temp_report, overwrite = TRUE)
-        progress$inc(0.2, detail = "Template copied")
-        
-        old_wd <- getwd()
-        setwd(tempdir())
-        
-        progress$inc(0.1, detail = "🚀 RENDERING PDF...")
-        
-        render_result <- tryCatch({
-          rmarkdown::render(
-            input = "laporan_variable_exploration.Rmd",
-            output_file = basename(file),
-            params = params,
-            envir = new.env(parent = globalenv()),
-            quiet = FALSE
+        # Check alternative locations
+        if (!file.exists(rmd_path)) {
+          alternative_paths <- c(
+            "/home/msi/Documents/variable_exploration_report.Rmd",
+            "/home/msi/AXIS_shiny_app/variable_exploration_report.Rmd",
+            "variable_exploration_report.Rmd",
+            "./reports/variable_exploration_report.Rmd"
           )
           
-          final_file <- file.path(tempdir(), basename(file))
-          if (file.exists(final_file)) {
-            file.copy(final_file, file, overwrite = TRUE)
-            "SUCCESS"
-          } else {
-            "NO_OUTPUT_FILE"
+          for (alt_path in alternative_paths) {
+            if (file.exists(alt_path)) {
+              rmd_path <- alt_path
+              break
+            }
           }
-          
-        }, error = function(e) {
-          cat("RENDER ERROR:", e$message, "\n")
-          return(paste("RENDER_ERROR:", e$message))
-        }, finally = {
-          setwd(old_wd)
-        })
-        
-        progress$inc(0.3, detail = "✅ DONE!")
-        
-        if (render_result == "SUCCESS" && file.exists(file)) {
-          showNotification("✅ LAPORAN VARIABEL PDF BERHASIL DIBUAT!", type = "success")
-        } else {
-          showNotification(paste("❌ RENDER GAGAL:", render_result), type = "error")
         }
         
-        unlink(temp_data_path)
+        incProgress(0.6, detail = "Rendering report...")
         
-      }, error = function(e) {
-        showNotification(paste("❌ ERROR:", e$message), type = "error")
-        return(NULL)
+        tryCatch({
+          rmarkdown::render(
+            input = rmd_path,
+            output_file = file,
+            params = list(
+              data = values$processed_data,
+              selected_var = input$explore_variable
+            ),
+            envir = new.env(),
+            quiet = TRUE
+          )
+          
+          incProgress(1, detail = "Report generated successfully!")
+          
+        }, error = function(e) {
+          showNotification(paste("Error generating report:", e$message), type = "error")
+          
+          # Fallback
+          cat("AXIS Variable Exploration Report\n",
+              "Generated on:", as.character(Sys.Date()), "\n",
+              "Error: Could not generate full report\n",
+              file = file)
+        })
       })
     },
     contentType = "application/pdf"
   )
   
-  # Download Regression Analysis Report (PDF)
-  output$downloadRegressionReport <- downloadHandler(
+  # Regression Analysis Report
+  output$download_regression_report <- downloadHandler(
     filename = function() {
-      paste0("Laporan_Analisis_Regresi_", format(Sys.Date(), "%Y%m%d"), ".pdf")
+      paste("AXIS_Regression_Analysis_Report_", Sys.Date(), ".pdf", sep = "")
     },
     content = function(file) {
-      progress <- shiny::Progress$new()
-      on.exit(progress$close())
-      progress$set(message = "🔥 MEMBUAT LAPORAN REGRESI PDF...", value = 0.1)
+      if (is.null(values$current_model)) {
+        showNotification("No regression model available for report generation.", type = "warning")
+        return()
+      }
       
-      tryCatch({
-        base_path <- "C:/Users/viery/OneDrive/Dokumen/College/KOMSTAT/AXIS_SECOND"
-        rmd_file <- file.path(base_path, "laporan_regression_analysis.Rmd")
+      withProgress(message = 'Generating regression report...', value = 0, {
+        incProgress(0.2, detail = "Preparing model analysis...")
         
-        if (!file.exists(rmd_file)) {
-          showNotification(paste("❌ FILE TIDAK ADA DI:", rmd_file), type = "error")
-          return(NULL)
-        }
+        # Hardcoded path
+        rmd_path <- "/home/msi/Documents/AXIS_shiny_app/regression_analysis_report.Rmd"
         
-        progress$set(message = "📁 FILE RMD FOUND!", value = 0.2)
-        
-        if (is.null(values$current_regression)) {
-          showNotification("❌ Belum ada analisis regresi yang dijalankan!", type = "error")
-          return(NULL)
-        }
-        
-        temp_data_path <- tempfile(fileext = ".csv")
-        write.csv(values$processed_data, temp_data_path, row.names = FALSE, fileEncoding = "UTF-8")
-        
-        # Save regression model
-        temp_model_path <- tempfile(fileext = ".rds")
-        saveRDS(values$current_regression, temp_model_path)
-        progress$inc(0.2, detail = "Data dan model siap")
-        
-        params <- list(
-          data_path = temp_data_path,
-          model_path = temp_model_path,
-          dependent_var = input$dependentVar,
-          independent_vars = input$independentVars,
-          analysis_date = Sys.Date()
-        )
-        
-        temp_report <- file.path(tempdir(), "laporan_regression_analysis.Rmd")
-        file.copy(rmd_file, temp_report, overwrite = TRUE)
-        progress$inc(0.2, detail = "Template copied")
-        
-        old_wd <- getwd()
-        setwd(tempdir())
-        
-        progress$inc(0.1, detail = "🚀 RENDERING PDF...")
-        
-        render_result <- tryCatch({
-          rmarkdown::render(
-            input = "laporan_regression_analysis.Rmd",
-            output_file = basename(file),
-            params = params,
-            envir = new.env(parent = globalenv()),
-            quiet = FALSE
+        # Check alternative locations
+        if (!file.exists(rmd_path)) {
+          alternative_paths <- c(
+            "/home/msi/Documents/regression_analysis_report.Rmd",
+            "/home/msi/AXIS_shiny_app/regression_analysis_report.Rmd",
+            "regression_analysis_report.Rmd",
+            "./reports/regression_analysis_report.Rmd"
           )
           
-          final_file <- file.path(tempdir(), basename(file))
-          if (file.exists(final_file)) {
-            file.copy(final_file, file, overwrite = TRUE)
-            "SUCCESS"
-          } else {
-            "NO_OUTPUT_FILE"
+          for (alt_path in alternative_paths) {
+            if (file.exists(alt_path)) {
+              rmd_path <- alt_path
+              break
+            }
           }
-          
-        }, error = function(e) {
-          cat("RENDER ERROR:", e$message, "\n")
-          return(paste("RENDER_ERROR:", e$message))
-        }, finally = {
-          setwd(old_wd)
-        })
-        
-        progress$inc(0.3, detail = "✅ DONE!")
-        
-        if (render_result == "SUCCESS" && file.exists(file)) {
-          showNotification("✅ LAPORAN REGRESI PDF BERHASIL DIBUAT!", type = "success")
-        } else {
-          showNotification(paste("❌ RENDER GAGAL:", render_result), type = "error")
         }
         
-        unlink(temp_data_path)
-        unlink(temp_model_path)
+        incProgress(0.6, detail = "Rendering report...")
         
-      }, error = function(e) {
-        showNotification(paste("❌ ERROR:", e$message), type = "error")
-        return(NULL)
+        tryCatch({
+          rmarkdown::render(
+            input = rmd_path,
+            output_file = file,
+            params = list(
+              model = values$current_model,
+              data = values$processed_data
+            ),
+            envir = new.env(),
+            quiet = TRUE
+          )
+          
+          incProgress(1, detail = "Report generated successfully!")
+          
+        }, error = function(e) {
+          showNotification(paste("Error generating report:", e$message), type = "error")
+          
+          # Fallback
+          cat("AXIS Regression Analysis Report\n",
+              "Generated on:", as.character(Sys.Date()), "\n",
+              "Error: Could not generate full report\n",
+              file = file)
+        })
       })
     },
     contentType = "application/pdf"
   )
-  
 }
