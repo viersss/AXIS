@@ -319,10 +319,15 @@ create_descriptive_stats_table <- function(data) {
 # Main comprehensive PDF report function
 create_comprehensive_pdf_report <- function(content_list, filename, title = "Comprehensive Statistical Analysis Report") {
   tryCatch({
+    # Ensure filename has PDF extension
+    if (!grepl("\\.pdf$", filename)) {
+      filename <- paste0(filename, ".pdf")
+    }
+    
     # Create temporary Rmd file
     temp_rmd <- tempfile(fileext = ".Rmd")
     
-    # Enhanced YAML header
+    # Enhanced YAML header with explicit PDF output
     yaml_header <- c(
       "---",
       paste("title:", shQuote(title)),
@@ -339,6 +344,8 @@ create_comprehensive_pdf_report <- function(content_list, filename, title = "Com
       "    fig_width: 8",
       "    fig_height: 6",
       "    keep_tex: no",
+      "    dev: 'png'",
+      "    dpi: 300",
       "geometry: margin=0.8in",
       "fontsize: 11pt",
       "header-includes:",
@@ -365,7 +372,9 @@ create_comprehensive_pdf_report <- function(content_list, filename, title = "Com
       "  message = FALSE,",
       "  fig.pos = 'H',",
       "  fig.align = 'center',",
-      "  out.width = '100%'",
+      "  out.width = '100%',",
+      "  dev = 'png',",
+      "  dpi = 300",
       ")",
       "library(ggplot2)",
       "library(knitr)",
@@ -381,8 +390,20 @@ create_comprehensive_pdf_report <- function(content_list, filename, title = "Com
     # Write to temporary file
     writeLines(full_content, temp_rmd)
     
-    # Render to PDF
-    rmarkdown::render(temp_rmd, output_file = filename, quiet = TRUE)
+    # Explicitly render to PDF with correct output format
+    rmarkdown::render(
+      input = temp_rmd, 
+      output_format = "pdf_document",
+      output_file = basename(filename),
+      output_dir = dirname(filename),
+      quiet = TRUE,
+      envir = new.env()
+    )
+    
+    # Verify PDF was created
+    if (!file.exists(filename)) {
+      return("Error: PDF file was not created")
+    }
     
     # Clean up
     unlink(temp_rmd)

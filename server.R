@@ -2469,6 +2469,7 @@ server <- function(input, output, session) {
     filename = function() {
       paste("laporan-komprehensif-data-", Sys.Date(), ".pdf", sep = "")
     },
+    contentType = "application/pdf",
     content = function(file) {
       if (!is.null(values$processed_data)) {
         # Generate comprehensive data analysis report
@@ -2840,6 +2841,7 @@ server <- function(input, output, session) {
     filename = function() {
       paste("laporan-komprehensif-eksplorasi-", Sys.Date(), ".pdf", sep = "")
     },
+    contentType = "application/pdf",
     content = function(file) {
       if (!is.null(values$processed_data) && !is.null(input$explore_variable)) {
         selected_var <- input$explore_variable
@@ -3544,6 +3546,7 @@ server <- function(input, output, session) {
     filename = function() {
       paste("laporan-komprehensif-regresi-", Sys.Date(), ".pdf", sep = "")
     },
+    contentType = "application/pdf",
     content = function(file) {
       if (!is.null(values$regression_model) && !is.null(input$reg_dependent) && !is.null(input$reg_independent)) {
         model <- values$regression_model
