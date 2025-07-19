@@ -304,9 +304,9 @@ ui <- dashboardPage(
                               p("Visualisasi data spasial dengan peta interaktif untuk analisis distribusi geografis dan autokorelasi spasial menggunakan matriks penimbang jarak.")
                      ),
                      tags$div(class="feature-item",
-                              tags$i(class="fas fa-file-alt fa-2x", style="color: #28a745; vertical-align: middle;"),
-                              tags$h5("Interpretasi & Ekspor Laporan"),
-                              p("Setiap hasil analisis dilengkapi dengan interpretasi statistik otomatis. Semua tabel, plot, dan laporan dapat diunduh dalam format PNG, PDF, dan Word.")
+                              tags$i(class="fas fa-file-pdf fa-2x", style="color: #dc3545; vertical-align: middle;"),
+                              tags$h5("📊 Laporan Komprehensif PDF"),
+                              p(strong("FITUR UNGGULAN: "), "Setiap modul menghasilkan laporan PDF yang sangat komprehensif dengan analisis mendalam, visualisasi profesional, interpretasi statistik ahli, executive summary, metodologi detail, dan rekomendasi praktis yang siap presentasi!")
                      )
               )
             )
@@ -457,9 +457,9 @@ ui <- dashboardPage(
                                         style = "width: 100%;")
                   ),
                   column(4,
-                         downloadButton("download_data_report", "Download Data Report (PDF)",
-                                        class = "btn btn-success btn-download",
-                                        style = "width: 100%;")
+                         downloadButton("download_data_report", "📊 Download Comprehensive Report (PDF)",
+                                        class = "btn btn-primary btn-download",
+                                        style = "width: 100%; font-weight: bold; background: linear-gradient(45deg, #007bff, #0056b3);")
                   )
                 )
               )
@@ -551,9 +551,9 @@ ui <- dashboardPage(
                                         style = "width: 100%;")
                   ),
                   column(4,
-                         downloadButton("download_exploration_report", "Download Report (PDF)",
-                                        class = "btn btn-success btn-download",
-                                        style = "width: 100%;")
+                         downloadButton("download_exploration_report", "📈 Download Comprehensive Analysis (PDF)",
+                                        class = "btn btn-primary btn-download",
+                                        style = "width: 100%; font-weight: bold; background: linear-gradient(45deg, #007bff, #0056b3);")
                   )
                 )
               )
@@ -679,9 +679,9 @@ ui <- dashboardPage(
                                           style = "width: 100%;")
                     ),
                     column(4,
-                           downloadButton("download_assumptions_report", "Download Full Report (PDF)",
-                                          class = "btn btn-success btn-download",
-                                          style = "width: 100%;")
+                                                    downloadButton("download_assumptions_report", "🔍 Download Statistical Tests Report (PDF)",
+                                        class = "btn btn-primary btn-download",
+                                        style = "width: 100%; font-weight: bold; background: linear-gradient(45deg, #007bff, #0056b3);")
                     )
                   )
                 )
@@ -816,9 +816,9 @@ ui <- dashboardPage(
                                           style = "width: 100%;")
                     ),
                     column(4,
-                           downloadButton("download_mean_test_report", "Download Full Report (PDF)",
-                                          class = "btn btn-success btn-download",
-                                          style = "width: 100%;")
+                                                    downloadButton("download_mean_test_report", "📊 Download Hypothesis Testing Report (PDF)",
+                                        class = "btn btn-primary btn-download",
+                                        style = "width: 100%; font-weight: bold; background: linear-gradient(45deg, #007bff, #0056b3);")
                     )
                   )
                 )
@@ -1012,9 +1012,9 @@ ui <- dashboardPage(
                                           style = "width: 100%;")
                     ),
                     column(4,
-                           downloadButton("download_prop_var_report", "Download Full Report (PDF)",
-                                          class = "btn btn-success btn-download",
-                                          style = "width: 100%;")
+                                                    downloadButton("download_prop_var_report", "📈 Download Proportion & Variance Report (PDF)",
+                                        class = "btn btn-primary btn-download",
+                                        style = "width: 100%; font-weight: bold; background: linear-gradient(45deg, #007bff, #0056b3);")
                     )
                   )
                 )
@@ -1149,9 +1149,9 @@ ui <- dashboardPage(
                                           style = "width: 100%;")
                     ),
                     column(4,
-                           downloadButton("download_anova_report", "Download Full Report (PDF)",
-                                          class = "btn btn-success btn-download",
-                                          style = "width: 100%;")
+                                                    downloadButton("download_anova_report", "📋 Download ANOVA Analysis Report (PDF)",
+                                        class = "btn btn-primary btn-download",
+                                        style = "width: 100%; font-weight: bold; background: linear-gradient(45deg, #007bff, #0056b3);")
                     )
                   )
                 )
@@ -1351,9 +1351,9 @@ ui <- dashboardPage(
                                           style = "width: 100%;")
                     ),
                     column(3,
-                           downloadButton("download_regression_report", "Download Full Report (PDF)",
-                                          class = "btn btn-success btn-download",
-                                          style = "width: 100%;")
+                           downloadButton("download_regression_report", "🔬 Download Advanced Analysis (PDF)",
+                                          class = "btn btn-primary btn-download",
+                                          style = "width: 100%; font-weight: bold; background: linear-gradient(45deg, #007bff, #0056b3);")
                     )
                   )
                 )
@@ -1515,9 +1515,9 @@ ui <- dashboardPage(
                                           style = "width: 100%;")
                     ),
                     column(3,
-                           downloadButton("download_spatial_report", "Download Full Report (PDF)",
-                                          class = "btn btn-success btn-download",
-                                          style = "width: 100%;")
+                                                    downloadButton("download_spatial_report", "🗺️ Download Spatial Analysis Report (PDF)",
+                                        class = "btn btn-primary btn-download",
+                                        style = "width: 100%; font-weight: bold; background: linear-gradient(45deg, #007bff, #0056b3);")
                     )
                   )
                 )

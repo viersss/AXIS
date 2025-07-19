@@ -27,6 +27,18 @@ library(gridExtra)
 library(grid)
 library(png)
 library(webshot)
+# Additional libraries for comprehensive PDF reports
+library(ggpubr)
+library(corrplot)
+library(VIM)
+library(Hmisc)
+library(psych)
+library(cowplot)
+library(scales)
+library(viridis)
+library(patchwork)
+library(broom)
+library(MASS)
 
 # Set global options
 options(shiny.maxRequestSize = 50*1024^2)  # 50MB max file size
@@ -57,11 +69,42 @@ theme_axis <- function() {
     )
 }
 
+# Professional theme for publications
+theme_publication <- function() {
+  theme_bw() +
+    theme(
+      plot.title = element_text(size = 16, face = "bold", hjust = 0.5, margin = margin(b = 20)),
+      plot.subtitle = element_text(size = 12, hjust = 0.5, margin = margin(b = 15)),
+      axis.title = element_text(size = 12, face = "bold"),
+      axis.text = element_text(size = 10),
+      legend.title = element_text(size = 11, face = "bold"),
+      legend.text = element_text(size = 10),
+      legend.position = "bottom",
+      panel.grid.minor = element_blank(),
+      panel.grid.major = element_line(color = "gray95"),
+      panel.border = element_rect(fill = NA, color = "black", size = 0.5),
+      strip.background = element_rect(fill = "gray98", color = "black"),
+      strip.text = element_text(size = 11, face = "bold"),
+      plot.margin = margin(t = 20, r = 20, b = 20, l = 20)
+    )
+}
+
 # Set default theme
 theme_set(theme_axis())
 
 # Color palette for plots
 axis_colors <- c("#3c8dbc", "#28a745", "#ffc107", "#dc3545", "#6f42c1", "#fd7e14")
+
+# Professional color palettes
+publication_colors <- c("#2E86AB", "#A23B72", "#F18F01", "#C73E1D", "#4E8098", "#90A959")
+statistical_colors <- list(
+  primary = "#2E86AB",
+  secondary = "#A23B72", 
+  accent = "#F18F01",
+  warning = "#C73E1D",
+  success = "#4E8098",
+  info = "#90A959"
+)
 
 # Helper functions
 format_pvalue <- function(p) {
@@ -103,371 +146,338 @@ interpret_cohens_d <- function(d) {
   }
 }
 
-# Statistical interpretation functions
-interpret_normality <- function(p_value, alpha = 0.05) {
-  if (is.na(p_value)) return("Cannot determine")
-  if (p_value > alpha) {
-    return("Data follows normal distribution")
+# Advanced statistical interpretation functions
+interpret_correlation <- function(r) {
+  abs_r <- abs(r)
+  if (abs_r < 0.1) return("negligible")
+  else if (abs_r < 0.3) return("weak")
+  else if (abs_r < 0.5) return("moderate")
+  else if (abs_r < 0.7) return("strong")
+  else return("very strong")
+}
+
+interpret_power <- function(power) {
+  if (power < 0.5) return("very low")
+  else if (power < 0.8) return("low")
+  else if (power < 0.95) return("adequate")
+  else return("high")
+}
+
+# Statistical significance interpretation
+significance_interpretation <- function(p_value, alpha = 0.05) {
+  if (p_value < 0.001) {
+    return("Hasil sangat signifikan secara statistik (p < 0.001)")
+  } else if (p_value < 0.01) {
+    return("Hasil sangat signifikan secara statistik (p < 0.01)")
+  } else if (p_value < alpha) {
+    return(paste("Hasil signifikan secara statistik (p < ", alpha, ")", sep = ""))
   } else {
-    return("Data does not follow normal distribution")
+    return("Hasil tidak signifikan secara statistik")
   }
 }
 
-interpret_homogeneity <- function(p_value, alpha = 0.05) {
-  if (is.na(p_value)) return("Cannot determine")
-  if (p_value > alpha) {
-    return("Variances are homogeneous")
-  } else {
-    return("Variances are not homogeneous")
+# Advanced visualization functions
+create_comprehensive_histogram <- function(data, variable, title = NULL) {
+  if (is.null(title)) title <- paste("Distribusi", variable)
+  
+  p1 <- ggplot(data, aes_string(x = variable)) +
+    geom_histogram(aes(y = ..density..), bins = 30, fill = statistical_colors$primary, 
+                   alpha = 0.7, color = "white") +
+    geom_density(color = statistical_colors$accent, size = 1.2) +
+    stat_function(fun = dnorm, 
+                  args = list(mean = mean(data[[variable]], na.rm = TRUE), 
+                            sd = sd(data[[variable]], na.rm = TRUE)),
+                  color = statistical_colors$warning, size = 1, linetype = "dashed") +
+    labs(title = title,
+         subtitle = "Histogram dengan kurva densitas dan distribusi normal teoritis",
+         x = variable,
+         y = "Densitas") +
+    theme_publication()
+  
+  return(p1)
+}
+
+create_qq_plot <- function(data, variable) {
+  p <- ggplot(data, aes_string(sample = variable)) +
+    stat_qq(color = statistical_colors$primary, alpha = 0.7) +
+    stat_qq_line(color = statistical_colors$warning, size = 1) +
+    labs(title = paste("Q-Q Plot untuk", variable),
+         subtitle = "Perbandingan dengan distribusi normal teoritis",
+         x = "Quantile Teoritis",
+         y = "Quantile Sampel") +
+    theme_publication()
+  
+  return(p)
+}
+
+create_boxplot_with_stats <- function(data, x_var, y_var, title = NULL) {
+  if (is.null(title)) title <- paste("Boxplot", y_var, "berdasarkan", x_var)
+  
+  p <- ggplot(data, aes_string(x = x_var, y = y_var, fill = x_var)) +
+    geom_boxplot(alpha = 0.7, outlier.color = statistical_colors$warning) +
+    geom_jitter(width = 0.2, alpha = 0.5, color = "gray30") +
+    stat_summary(fun = mean, geom = "point", shape = 23, 
+                 size = 3, fill = statistical_colors$accent, color = "white") +
+    scale_fill_manual(values = publication_colors) +
+    labs(title = title,
+         subtitle = "Boxplot dengan titik data individual dan rata-rata",
+         x = x_var,
+         y = y_var) +
+    theme_publication() +
+    theme(legend.position = "none")
+  
+  return(p)
+}
+
+create_correlation_matrix <- function(data) {
+  numeric_data <- data[sapply(data, is.numeric)]
+  if (ncol(numeric_data) < 2) return(NULL)
+  
+  cor_matrix <- cor(numeric_data, use = "complete.obs")
+  
+  # Create correlation plot using corrplot
+  png_file <- tempfile(fileext = ".png")
+  png(png_file, width = 800, height = 800, res = 150)
+  corrplot(cor_matrix, method = "color", type = "upper", 
+           order = "hclust", tl.cex = 0.8, tl.col = "black",
+           addCoef.col = "black", number.cex = 0.7,
+           col = colorRampPalette(c("#C73E1D", "white", "#2E86AB"))(100),
+           title = "Matriks Korelasi Antar Variabel")
+  dev.off()
+  
+  return(png_file)
+}
+
+# Comprehensive data quality assessment
+assess_data_quality <- function(data) {
+  assessment <- list()
+  
+  # Basic information
+  assessment$n_rows <- nrow(data)
+  assessment$n_cols <- ncol(data)
+  assessment$missing_total <- sum(is.na(data))
+  assessment$missing_percent <- round((assessment$missing_total / (assessment$n_rows * assessment$n_cols)) * 100, 2)
+  
+  # Missing data by variable
+  assessment$missing_by_var <- sapply(data, function(x) sum(is.na(x)))
+  assessment$missing_percent_by_var <- round((assessment$missing_by_var / assessment$n_rows) * 100, 2)
+  
+  # Data types
+  assessment$numeric_vars <- names(data)[sapply(data, is.numeric)]
+  assessment$character_vars <- names(data)[sapply(data, is.character)]
+  assessment$factor_vars <- names(data)[sapply(data, is.factor)]
+  
+  # Outliers detection for numeric variables
+  assessment$outliers <- list()
+  for (var in assessment$numeric_vars) {
+    Q1 <- quantile(data[[var]], 0.25, na.rm = TRUE)
+    Q3 <- quantile(data[[var]], 0.75, na.rm = TRUE)
+    IQR <- Q3 - Q1
+    lower_bound <- Q1 - 1.5 * IQR
+    upper_bound <- Q3 + 1.5 * IQR
+    outliers <- which(data[[var]] < lower_bound | data[[var]] > upper_bound)
+    assessment$outliers[[var]] <- length(outliers)
   }
+  
+  return(assessment)
 }
 
-# Power analysis helper
-calculate_power <- function(effect_size, n, alpha = 0.05) {
-  if (is.na(effect_size) || is.na(n) || n <= 0) return(NA)
-  # Simplified power calculation for t-test
-  delta <- effect_size * sqrt(n/2)
-  power <- 1 - pt(qt(1 - alpha/2, n-2), n-2, delta) + pt(qt(alpha/2, n-2), n-2, delta)
-  return(power)
-}
-
-# Sample size calculation
-calculate_sample_size <- function(effect_size, power = 0.8, alpha = 0.05) {
-  if (is.na(effect_size) || effect_size <= 0) return(NA)
-  # Simplified sample size calculation
-  z_alpha <- qnorm(1 - alpha/2)
-  z_beta <- qnorm(power)
-  n <- 2 * ((z_alpha + z_beta) / effect_size)^2
-  return(ceiling(n))
-}
-
-# Data URL constants
-SOVI_DATA_URL <- "https://raw.githubusercontent.com/bmlmcmc/naspaclust/main/data/sovi_data.csv"
-DISTANCE_DATA_URL <- "https://raw.githubusercontent.com/bmlmcmc/naspaclust/main/data/distance.csv"
-METADATA_URL <- "https://www.sciencedirect.com/science/article/pii/S2352340921010180"
-
-# Dashboard information
-DASHBOARD_INFO <- list(
-  name = "AXIS",
-  full_name = "Advanced Exploratory Inference Statistics",
-  version = "1.0.0",
-  description = "Comprehensive statistical analysis platform for exploratory data analysis and statistical inference",
-  author = "Statistical Analysis Team",
-  contact = "axis@statistics.com"
-)
-
-# Distance matrix interpretation function
-interpret_distance_matrix <- function(distance_matrix) {
-  if (is.null(distance_matrix) || !is.matrix(distance_matrix)) {
-    return(list(
-      mean_distance = NA,
-      sd_distance = NA,
-      min_distance = NA,
-      max_distance = NA,
-      cv = NA
+# Professional statistical summary
+create_descriptive_stats_table <- function(data) {
+  numeric_data <- data[sapply(data, is.numeric)]
+  if (ncol(numeric_data) == 0) return(NULL)
+  
+  stats_summary <- numeric_data %>%
+    summarise_all(list(
+      N = ~sum(!is.na(.)),
+      Mean = ~round(mean(., na.rm = TRUE), 3),
+      SD = ~round(sd(., na.rm = TRUE), 3),
+      Min = ~round(min(., na.rm = TRUE), 3),
+      Q1 = ~round(quantile(., 0.25, na.rm = TRUE), 3),
+      Median = ~round(median(., na.rm = TRUE), 3),
+      Q3 = ~round(quantile(., 0.75, na.rm = TRUE), 3),
+      Max = ~round(max(., na.rm = TRUE), 3),
+      Skewness = ~round(moments::skewness(., na.rm = TRUE), 3),
+      Kurtosis = ~round(moments::kurtosis(., na.rm = TRUE), 3)
     ))
-  }
   
-  mean_dist <- mean(distance_matrix, na.rm = TRUE)
-  sd_dist <- sd(distance_matrix, na.rm = TRUE)
-  min_dist <- min(distance_matrix, na.rm = TRUE)
-  max_dist <- max(distance_matrix, na.rm = TRUE)
+  # Transpose and format
+  stats_df <- as.data.frame(t(stats_summary))
+  stats_df$Variable <- rep(names(numeric_data), each = 10)
+  stats_df$Statistic <- rep(c("N", "Mean", "SD", "Min", "Q1", "Median", "Q3", "Max", "Skewness", "Kurtosis"), 
+                            times = ncol(numeric_data))
+  stats_df <- stats_df[, c("Variable", "Statistic", "V1")]
+  names(stats_df)[3] <- "Value"
   
-  list(
-    mean_distance = mean_dist,
-    sd_distance = sd_dist,
-    min_distance = min_dist,
-    max_distance = max_dist,
-    cv = ifelse(mean_dist != 0, (sd_dist / mean_dist) * 100, NA)
-  )
+  return(stats_df)
 }
 
-# Spatial autocorrelation helper
-calculate_morans_i <- function(values, weights_matrix) {
-  if (is.null(values) || is.null(weights_matrix) || length(values) == 0) {
-    return(NA)
-  }
-  
-  n <- length(values)
-  W <- sum(weights_matrix, na.rm = TRUE)
-  
-  if (W == 0 || is.na(W)) return(NA)
-  
-  mean_val <- mean(values, na.rm = TRUE)
-  if (is.na(mean_val)) return(NA)
-  
-  numerator <- 0
-  denominator <- sum((values - mean_val)^2, na.rm = TRUE)
-  
-  if (denominator == 0) return(NA)
-  
-  for (i in 1:n) {
-    for (j in 1:n) {
-      if (!is.na(weights_matrix[i, j]) && weights_matrix[i, j] > 0) {
-        numerator <- numerator + weights_matrix[i, j] * (values[i] - mean_val) * (values[j] - mean_val)
-      }
-    }
-  }
-  
-  morans_i <- (n / W) * (numerator / denominator)
-  return(morans_i)
-}
+# =================================================================== #
+# COMPREHENSIVE PDF REPORT GENERATION FUNCTIONS
+# =================================================================== #
 
-# Spatial weights matrix creation functions
-create_distance_weights <- function(distance_matrix, method = "inverse", threshold = NULL) {
-  if (is.null(distance_matrix) || !is.matrix(distance_matrix)) {
-    return(matrix(0, 1, 1))
-  }
-  
-  if (method == "inverse") {
-    weights <- 1 / (distance_matrix + diag(nrow(distance_matrix)))
-    diag(weights) <- 0
-  } else if (method == "exponential") {
-    weights <- exp(-distance_matrix)
-    diag(weights) <- 0
-  } else if (method == "threshold") {
-    if (is.null(threshold)) threshold <- mean(distance_matrix, na.rm = TRUE)
-    weights <- ifelse(distance_matrix <= threshold & distance_matrix > 0, 1, 0)
-  } else {
-    weights <- matrix(0, nrow(distance_matrix), ncol(distance_matrix))
-  }
-  
-  return(weights)
-}
-
-create_knn_weights <- function(distance_matrix, k = 5) {
-  if (is.null(distance_matrix) || !is.matrix(distance_matrix)) {
-    return(matrix(0, 1, 1))
-  }
-  
-  n <- nrow(distance_matrix)
-  weights <- matrix(0, n, n)
-  
-  for (i in 1:n) {
-    neighbors <- order(distance_matrix[i, ])[2:min(k+1, n)]  # Exclude self
-    weights[i, neighbors] <- 1
-  }
-  
-  return(weights)
-}
-
-# Spatial statistics helper functions
-calculate_local_morans_i <- function(values, weights_matrix) {
-  if (is.null(values) || is.null(weights_matrix)) {
-    return(rep(NA, length(values)))
-  }
-  
-  n <- length(values)
-  mean_val <- mean(values, na.rm = TRUE)
-  var_val <- var(values, na.rm = TRUE)
-  
-  if (is.na(mean_val) || is.na(var_val) || var_val == 0) {
-    return(rep(NA, n))
-  }
-  
-  local_i <- numeric(n)
-  
-  for (i in 1:n) {
-    wi_sum <- sum(weights_matrix[i, ], na.rm = TRUE)
-    if (wi_sum > 0) {
-      local_i[i] <- (values[i] - mean_val) / var_val * 
-        sum(weights_matrix[i, ] * (values - mean_val), na.rm = TRUE)
-    } else {
-      local_i[i] <- NA
-    }
-  }
-  
-  return(local_i)
-}
-
-# Geary's C calculation
-calculate_gearys_c <- function(values, weights_matrix) {
-  if (is.null(values) || is.null(weights_matrix)) {
-    return(NA)
-  }
-  
-  n <- length(values)
-  W <- sum(weights_matrix, na.rm = TRUE)
-  
-  if (W == 0 || is.na(W)) return(NA)
-  
-  numerator <- 0
-  denominator <- sum((values - mean(values, na.rm = TRUE))^2, na.rm = TRUE)
-  
-  if (denominator == 0) return(NA)
-  
-  for (i in 1:n) {
-    for (j in 1:n) {
-      if (!is.na(weights_matrix[i, j]) && weights_matrix[i, j] > 0) {
-        numerator <- numerator + weights_matrix[i, j] * (values[i] - values[j])^2
-      }
-    }
-  }
-  
-  gearys_c <- ((n - 1) / (2 * W)) * (numerator / denominator)
-  return(gearys_c)
-}
-
-# Spatial lag calculation
-calculate_spatial_lag <- function(values, weights_matrix) {
-  if (is.null(values) || is.null(weights_matrix)) {
-    return(rep(NA, length(values)))
-  }
-  
-  n <- length(values)
-  spatial_lag <- numeric(n)
-  
-  for (i in 1:n) {
-    wi_sum <- sum(weights_matrix[i, ], na.rm = TRUE)
-    if (wi_sum > 0) {
-      spatial_lag[i] <- sum(weights_matrix[i, ] * values, na.rm = TRUE) / wi_sum
-    } else {
-      spatial_lag[i] <- NA
-    }
-  }
-  
-  return(spatial_lag)
-}
-
-# Color palette functions for mapping
-get_color_palette <- function(scheme, n = 5) {
+# Main comprehensive PDF report function
+create_comprehensive_pdf_report <- function(content_list, filename, title = "Comprehensive Statistical Analysis Report") {
   tryCatch({
-    if (scheme == "viridis") {
-      return(viridis::viridis(n))
-    } else if (scheme == "plasma") {
-      return(viridis::plasma(n))
-    } else {
-      return(RColorBrewer::brewer.pal(min(n, 9), scheme))
-    }
-  }, error = function(e) {
-    return(rainbow(n))
-  })
-}
-
-# Map legend helper
-create_map_legend <- function(values, breaks, colors) {
-  if (is.null(values) || is.null(breaks) || length(breaks) < 2) {
-    return(character(0))
-  }
-  
-  legend_labels <- character(length(breaks) - 1)
-  for (i in 1:(length(breaks) - 1)) {
-    legend_labels[i] <- paste(round(breaks[i], 2), "-", round(breaks[i + 1], 2))
-  }
-  return(legend_labels)
-}
-
-# Statistical test result formatter
-format_test_result <- function(test_result, test_name) {
-  if (is.null(test_result)) {
-    return("Test result not available")
-  }
-  
-  result_text <- paste0(
-    "Test: ", test_name, "\n",
-    "Statistic: ", ifelse(is.null(test_result$statistic), "NA", round(test_result$statistic, 4)), "\n",
-    "P-value: ", ifelse(is.null(test_result$p.value), "NA", format_pvalue(test_result$p.value)), "\n"
-  )
-  
-  if (!is.null(test_result$conf.int)) {
-    result_text <- paste0(result_text, 
-                          "95% CI: [", round(test_result$conf.int[1], 4), 
-                          ", ", round(test_result$conf.int[2], 4), "]\n")
-  }
-  
-  return(result_text)
-}
-
-# Data validation functions
-validate_numeric_data <- function(data, var_name) {
-  if (is.null(data)) {
-    return(paste("Error:", var_name, "is NULL"))
-  }
-  
-  if (!is.numeric(data)) {
-    return(paste("Error:", var_name, "must be numeric"))
-  }
-  
-  if (all(is.na(data))) {
-    return(paste("Error:", var_name, "contains only missing values"))
-  }
-  
-  if (length(unique(data[!is.na(data)])) < 2) {
-    return(paste("Warning:", var_name, "has insufficient variation"))
-  }
-  
-  return("OK")
-}
-
-validate_categorical_data <- function(data, var_name) {
-  if (is.null(data)) {
-    return(paste("Error:", var_name, "is NULL"))
-  }
-  
-  if (all(is.na(data))) {
-    return(paste("Error:", var_name, "contains only missing values"))
-  }
-  
-  unique_vals <- length(unique(data[!is.na(data)]))
-  if (unique_vals < 2) {
-    return(paste("Error:", var_name, "must have at least 2 categories"))
-  }
-  
-  if (unique_vals > 20) {
-    return(paste("Warning:", var_name, "has many categories (", unique_vals, ")"))
-  }
-  
-  return("OK")
-}
-
-# Report generation helpers
-generate_summary_stats <- function(data, var_name) {
-  if (is.null(data)) {
-    return(list(error = "Data is NULL"))
-  }
-  
-  if (is.numeric(data)) {
-    return(list(
-      mean = mean(data, na.rm = TRUE),
-      median = median(data, na.rm = TRUE),
-      sd = sd(data, na.rm = TRUE),
-      min = min(data, na.rm = TRUE),
-      max = max(data, na.rm = TRUE),
-      n = sum(!is.na(data)),
-      missing = sum(is.na(data))
-    ))
-  } else {
-    tbl <- table(data, useNA = "ifany")
-    return(list(
-      frequencies = tbl,
-      n = sum(!is.na(data)),
-      missing = sum(is.na(data)),
-      categories = length(unique(data[!is.na(data)]))
-    ))
-  }
-}
-
-# File export helpers
-export_to_csv <- function(data, filename) {
-  tryCatch({
-    write.csv(data, filename, row.names = FALSE)
+    # Create temporary Rmd file
+    temp_rmd <- tempfile(fileext = ".Rmd")
+    
+    # Enhanced YAML header
+    yaml_header <- c(
+      "---",
+      paste("title:", shQuote(title)),
+      paste("subtitle:", shQuote("AXIS Dashboard - Advanced Statistical Analysis")),
+      paste("author:", shQuote("Generated by AXIS Dashboard")),
+      paste("date:", shQuote(format(Sys.Date(), "%d %B %Y"))),
+      "output:",
+      "  pdf_document:",
+      "    latex_engine: xelatex",
+      "    fig_caption: yes",
+      "    number_sections: yes",
+      "    toc: yes",
+      "    toc_depth: 3",
+      "    fig_width: 8",
+      "    fig_height: 6",
+      "    keep_tex: no",
+      "geometry: margin=0.8in",
+      "fontsize: 11pt",
+      "header-includes:",
+      "  - \\usepackage{float}",
+      "  - \\usepackage{booktabs}",
+      "  - \\usepackage{longtable}",
+      "  - \\usepackage{array}",
+      "  - \\usepackage{multirow}",
+      "  - \\usepackage{wrapfig}",
+      "  - \\usepackage{colortbl}",
+      "  - \\usepackage{xcolor}",
+      "  - \\usepackage{fancyhdr}",
+      "  - \\pagestyle{fancy}",
+      "  - \\fancyhf{}",
+      "  - \\fancyhead[L]{AXIS Dashboard}",
+      "  - \\fancyhead[R]{\\thepage}",
+      "  - \\fancyfoot[C]{Statistical Analysis Report}",
+      "---",
+      "",
+      "```{r setup, include=FALSE}",
+      "knitr::opts_chunk$set(",
+      "  echo = FALSE,", 
+      "  warning = FALSE,", 
+      "  message = FALSE,",
+      "  fig.pos = 'H',",
+      "  fig.align = 'center',",
+      "  out.width = '100%'",
+      ")",
+      "library(ggplot2)",
+      "library(knitr)",
+      "library(dplyr)",
+      "library(gridExtra)",
+      "```",
+      ""
+    )
+    
+    # Combine all content
+    full_content <- c(yaml_header, content_list)
+    
+    # Write to temporary file
+    writeLines(full_content, temp_rmd)
+    
+    # Render to PDF
+    rmarkdown::render(temp_rmd, output_file = filename, quiet = TRUE)
+    
+    # Clean up
+    unlink(temp_rmd)
+    
     return("Success")
   }, error = function(e) {
-    return(paste("Error:", e$message))
+    return(paste("Error creating comprehensive PDF:", e$message))
   })
 }
 
-export_plot_to_png <- function(plot_obj, filename, width = 10, height = 6, dpi = 300) {
-  tryCatch({
-    ggsave(filename, plot = plot_obj, device = "png", 
-           width = width, height = height, dpi = dpi)
-    return("Success")
-  }, error = function(e) {
-    return(paste("Error:", e$message))
-  })
+# Generate executive summary
+generate_executive_summary <- function(data, analysis_type = "General") {
+  data_quality <- assess_data_quality(data)
+  
+  summary_content <- c(
+    "# Executive Summary",
+    "",
+    paste("**Jenis Analisis:** ", analysis_type),
+    paste("**Tanggal Analisis:** ", format(Sys.time(), "%d %B %Y, %H:%M %Z")),
+    paste("**Total Observasi:** ", format(data_quality$n_rows, big.mark = ",")),
+    paste("**Total Variabel:** ", data_quality$n_cols),
+    "",
+    "## Ringkasan Kualitas Data",
+    "",
+    paste("- **Missing Data:** ", data_quality$missing_total, " (", data_quality$missing_percent, "%)", sep = ""),
+    paste("- **Variabel Numerik:** ", length(data_quality$numeric_vars)),
+    paste("- **Variabel Kategorikal:** ", length(data_quality$character_vars) + length(data_quality$factor_vars)),
+    "",
+    "## Temuan Utama",
+    "",
+    "Analisis statistik komprehensif telah dilakukan terhadap dataset dengan fokus pada:",
+    "",
+    "1. **Kualitas Data:** Evaluasi kelengkapan dan konsistensi data",
+    "2. **Distribusi Variabel:** Analisis karakteristik distribusi setiap variabel",
+    "3. **Hubungan Antar Variabel:** Identifikasi pola korelasi dan asosiasi",
+    "4. **Pengujian Hipotesis:** Verifikasi asumsi dan pengujian signifikansi statistik",
+    "",
+    "\\newpage",
+    ""
+  )
+  
+  return(summary_content)
 }
 
-# PDF Report Generation Functions
+# Generate detailed methodology section
+generate_methodology_section <- function(analysis_type) {
+  methodology_content <- c(
+    "# Metodologi Analisis",
+    "",
+    "## Pendekatan Statistik",
+    "",
+    "Analisis ini menggunakan pendekatan statistik inferensial dengan tahapan sebagai berikut:",
+    "",
+    "### 1. Eksplorasi Data Awal",
+    "- Analisis statistik deskriptif komprehensif",
+    "- Identifikasi missing data dan outliers",
+    "- Visualisasi distribusi variabel",
+    "",
+    "### 2. Uji Asumsi Statistik",
+    "- **Normalitas:** Shapiro-Wilk test, Kolmogorov-Smirnov test",
+    "- **Homogenitas Varians:** Levene's test, Bartlett's test", 
+    "- **Independensi:** Visual inspection dan analisis residual",
+    "",
+    "### 3. Pemilihan Uji Statistik",
+    "Pemilihan uji statistik didasarkan pada:",
+    "- Jenis data (numerik/kategorikal)",
+    "- Distribusi data",
+    "- Jumlah sampel",
+    "- Tujuan analisis",
+    "",
+    "### 4. Interpretasi Hasil",
+    "- **Signifikansi Statistik:** α = 0.05",
+    "- **Effect Size:** Cohen's d, eta-squared",
+    "- **Confidence Interval:** 95%",
+    "- **Power Analysis:** Post-hoc power calculation",
+    "",
+    "### 5. Validasi dan Robustness",
+    "- Cross-validation untuk model prediktif",
+    "- Sensitivity analysis",
+    "- Assumption checking",
+    "",
+    "## Software dan Packages",
+    "",
+    paste("- **R Version:** ", R.version.string),
+    "- **Key Packages:** ggplot2, dplyr, car, nortest, lmtest, psych",
+    "- **Analysis Platform:** AXIS Dashboard",
+    "",
+    "\\newpage",
+    ""
+  )
+  
+  return(methodology_content)
+}
+
+# PDF Report Generation Functions (Enhanced)
 create_pdf_report <- function(content, filename, title = "Statistical Analysis Report") {
   tryCatch({
     # Create temporary Rmd file
