@@ -416,16 +416,176 @@ create_descriptive_stats_table <- function(data) {
 # COMPREHENSIVE PDF REPORT GENERATION FUNCTIONS
 # =================================================================== #
 
-# PROFESSIONAL STATISTICAL REPORT WITH ADVANCED VISUALIZATIONS
+# PROFESSIONAL STATISTICAL REPORT WITH REAL PDF OUTPUT
 create_comprehensive_pdf_report <- function(content_list, filename, title = "Laporan Analisis Statistik Komprehensif", data = NULL) {
   tryCatch({
+    # Create temporary HTML file
+    temp_html <- tempfile(fileext = ".html")
+    
     # Create professional HTML report with embedded visualizations
     html_report <- create_advanced_statistical_report(content_list, title, data)
     
-    # Write HTML file
-    writeLines(html_report, filename)
+    # Write HTML to temporary file
+    writeLines(html_report, temp_html)
     
-    return("Success")
+    # Convert HTML to PDF using multiple methods
+    pdf_created <- FALSE
+    
+    # Method 1: Try webshot package (requires phantomjs)
+    if (!pdf_created && requireNamespace("webshot", quietly = TRUE)) {
+      tryCatch({
+        webshot::webshot(
+          url = temp_html,
+          file = filename,
+          delay = 2,
+          vwidth = 1200,
+          vheight = 900,
+          cliprect = "viewport"
+        )
+        if (file.exists(filename) && file.size(filename) > 1000) {
+          pdf_created <- TRUE
+        }
+      }, error = function(e) {
+        # Continue to next method
+      })
+    }
+    
+    # Method 2: Try pagedown package
+    if (!pdf_created && requireNamespace("pagedown", quietly = TRUE)) {
+      tryCatch({
+        pagedown::chrome_print(
+          input = temp_html,
+          output = filename,
+          wait = 3,
+          timeout = 30
+        )
+        if (file.exists(filename) && file.size(filename) > 1000) {
+          pdf_created <- TRUE
+        }
+      }, error = function(e) {
+        # Continue to next method
+      })
+    }
+    
+    # Method 3: Try rmarkdown with pandoc
+    if (!pdf_created && requireNamespace("rmarkdown", quietly = TRUE)) {
+      tryCatch({
+        # Create temporary Rmd file
+        temp_rmd <- tempfile(fileext = ".Rmd")
+        rmd_content <- c(
+          "---",
+          paste("title:", shQuote(title)),
+          "output:",
+          "  pdf_document:",
+          "    latex_engine: xelatex",
+          "---",
+          "",
+          "```{r setup, include=FALSE}",
+          "knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)",
+          "```",
+          "",
+          paste(content_list, collapse = "\n\n")
+        )
+        writeLines(rmd_content, temp_rmd)
+        
+        rmarkdown::render(
+          input = temp_rmd,
+          output_file = filename,
+          quiet = TRUE
+        )
+        
+        if (file.exists(filename) && file.size(filename) > 1000) {
+          pdf_created <- TRUE
+        }
+        unlink(temp_rmd)
+      }, error = function(e) {
+        # Continue to next method
+      })
+    }
+    
+    # Method 4: Use Chromium headless for PDF generation
+    if (!pdf_created && system("which chromium-browser", ignore.stdout = TRUE, ignore.stderr = TRUE) == 0) {
+      tryCatch({
+        chrome_cmd <- paste(
+          "chromium-browser",
+          "--headless",
+          "--disable-gpu",
+          "--no-sandbox",
+          "--disable-dev-shm-usage",
+          paste0("--print-to-pdf=", shQuote(filename)),
+          "--print-to-pdf-no-header",
+          "--disable-extensions",
+          "--disable-background-timer-throttling",
+          "--disable-backgrounding-occluded-windows",
+          "--disable-renderer-backgrounding",
+          "--run-all-compositor-stages-before-draw",
+          "--virtual-time-budget=5000",
+          paste0("file://", temp_html)
+        )
+        result <- system(chrome_cmd, ignore.stdout = TRUE, ignore.stderr = TRUE)
+        if (result == 0 && file.exists(filename) && file.size(filename) > 1000) {
+          pdf_created <- TRUE
+        }
+      }, error = function(e) {
+        # Continue to next method
+      })
+    }
+    
+    # Method 5: System pandoc command if available
+    if (!pdf_created && system("which pandoc", ignore.stdout = TRUE, ignore.stderr = TRUE) == 0) {
+      tryCatch({
+        pandoc_cmd <- paste(
+          "pandoc",
+          shQuote(temp_html),
+          "-o", shQuote(filename),
+          "--pdf-engine=weasyprint",
+          "--margin-top=1in --margin-bottom=1in --margin-left=1in --margin-right=1in"
+        )
+        result <- system(pandoc_cmd, ignore.stdout = TRUE, ignore.stderr = TRUE)
+        if (result == 0 && file.exists(filename) && file.size(filename) > 1000) {
+          pdf_created <- TRUE
+        }
+      }, error = function(e) {
+        # Continue to fallback
+      })
+    }
+    
+    # Fallback: Create a warning message and save as HTML with PDF extension
+    if (!pdf_created) {
+      # Add a notice that this is HTML formatted for PDF printing
+      html_with_notice <- paste(
+        "<!DOCTYPE html>",
+        "<html>",
+        "<head>",
+        "<style>",
+        "@page { size: A4; margin: 1in; }",
+        "@media print { .no-print { display: none; } }",
+        "body { font-family: 'Times New Roman', serif; }",
+        ".pdf-notice { background: #ffeb3b; padding: 10px; margin: 10px 0; border-left: 5px solid #ff9800; }",
+        "</style>",
+        "</head>",
+        "<body>",
+        "<div class='pdf-notice no-print'>",
+        "<strong>📄 PETUNJUK CETAK PDF:</strong> File ini adalah laporan HTML yang dioptimalkan untuk dicetak sebagai PDF. Gunakan <strong>Ctrl+P</strong> di browser dan pilih 'Save as PDF' atau 'Microsoft Print to PDF' untuk mendapatkan file PDF yang sesungguhnya.",
+        "</div>",
+        html_report,
+        "</body>",
+        "</html>",
+        sep = "\n"
+      )
+      
+      writeLines(html_with_notice, filename)
+      pdf_created <- TRUE
+    }
+    
+    # Clean up
+    unlink(temp_html)
+    
+    if (pdf_created && file.exists(filename)) {
+      return("Success")
+    } else {
+      return("Error: Could not create report file")
+    }
     
   }, error = function(e) {
     return(paste("Error creating professional report:", e$message))

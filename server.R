@@ -2762,7 +2762,18 @@ server <- function(input, output, session) {
         } else {
           # The file is now HTML but will be downloaded with PDF extension
           # This allows browser to handle it properly for printing to PDF
-          safe_notification("Laporan Analisis Statistik Profesional berhasil dibuat! File dapat dicetak sebagai PDF dengan Ctrl+P.", "success")
+          # Check if file is actually PDF or HTML
+          if (file.exists(file)) {
+            # Read first few bytes to determine file type
+            file_header <- readBin(file, "raw", n = 4)
+            if (length(file_header) >= 4 && rawToChar(file_header) == "%PDF") {
+              safe_notification("✅ Laporan PDF berhasil dibuat! File siap untuk dibuka.", "success")
+            } else {
+              safe_notification("📄 Laporan HTML telah dibuat. Gunakan Ctrl+P → 'Save as PDF' untuk mendapatkan file PDF.", "info")
+            }
+          } else {
+            safe_notification("❌ Gagal membuat laporan.", "error")
+          }
         }
       }
     }
