@@ -2747,7 +2747,7 @@ server <- function(input, output, session) {
         )
         
         # Generate comprehensive PDF
-        result <- create_comprehensive_pdf_report(content_list, file, "Laporan Komprehensif Manajemen Data")
+        result <- create_comprehensive_pdf_report(content_list, file, "Laporan Komprehensif Manajemen Data", values$processed_data)
         
         # Clean up temporary files
         if (!is.null(cor_plot_file) && file.exists(cor_plot_file)) {
@@ -3286,7 +3286,7 @@ server <- function(input, output, session) {
         )
         
         # Generate comprehensive PDF
-        result <- create_comprehensive_pdf_report(content_list, file, paste("Laporan Komprehensif Eksplorasi Variabel:", selected_var))
+        result <- create_comprehensive_pdf_report(content_list, file, paste("Laporan Komprehensif Eksplorasi Variabel:", selected_var), values$processed_data)
         
         # Clean up temporary files
         for (plot_file in temp_plots) {
@@ -4009,7 +4009,7 @@ server <- function(input, output, session) {
         )
         
         # Generate comprehensive PDF
-        result <- create_comprehensive_pdf_report(content_list, file, "Laporan Komprehensif Regresi Linear Berganda")
+        result <- create_comprehensive_pdf_report(content_list, file, "Laporan Komprehensif Regresi Linear Berganda", values$processed_data)
         
         # Clean up temporary files
         for (plot_file in temp_plots) {
