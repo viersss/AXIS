@@ -1052,7 +1052,7 @@ ui <- dashboardPage(
                      
                      tags$h2("Advanced eXploratory Inference Statistics"),
                      
-                     tags$p("Platform analisis modern untuk penelitian kerentanan sosial dengan tools statistik komprehensif, visualisasi interaktif, dan analisis spasial yang terintegrasi menggunakan data Social Vulnerability Index dari penelitian ilmiah.")
+                     tags$p("Dashboard ini merupakan platform analisis modern yang dirancang untuk mendukung penelitian kerentanan sosial dengan pendekatan multidimensi. Menggunakan data Social Vulnerability Index (SOVI) dari sumber ilmiah, dashboard ini mengintegrasikan analisis statistik komprehensif, visualisasi data yang interaktif, serta analisis spasial berbasis peta. Fitur-fitur ini memungkinkan pengguna untuk mengidentifikasi pola kerentanan, memahami hubungan antar variabel, dan mengambil keputusan berbasis bukti secara efisien dan akurat.")
                    )
                  )
           )
