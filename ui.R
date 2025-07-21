@@ -1626,7 +1626,7 @@ ui <- dashboardPage(
                                        ),
                                        width = "100%"),
                            
-                           actionButton("apply_transformation", "Terapkan Transformasi",
+                           actionButton("apply_transformation", "Apply Transformation",
                                         class = "btn btn-success",
                                         style = "width: 100%; margin-bottom: 24px;"),
                            
