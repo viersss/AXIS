@@ -1235,7 +1235,7 @@ ui <- dashboardPage(
                      tags$i(class = "fas fa-map-marked-alt")
                    ),
                    
-                   tags$h3("38"),
+                   tags$h3("34"),
                    tags$h5("Provinsi Indonesia"),
                    tags$p("Cakupan wilayah dalam data"),
                    
