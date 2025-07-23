@@ -131,6 +131,7 @@ ui <- dashboardPage(
       
       # Menu Items with modern styling
       menuItem("Beranda", tabName = "beranda", icon = icon("home")),
+      menuItem("User Guide", tabName = "user_guide", icon = icon("book-open")),
       menuItem("Manajemen Data", tabName = "data_management", icon = icon("database")),
       menuItem("Eksplorasi Data", tabName = "exploration", icon = icon("search")),
       menuItem("Uji Asumsi Data", tabName = "assumptions", icon = icon("check-to-slot")),
@@ -1495,6 +1496,189 @@ ui <- dashboardPage(
           )
         ),
         
+        # SoVI Variables Table Section
+        fluidRow(
+          column(12,
+                 tags$div(
+                   class = "metadata-card",
+                   style = "padding: 0; overflow: hidden;",
+                   
+                   tags$table(
+                     class = "variable-table",
+                     tags$thead(
+                       tags$tr(
+                         tags$th("Kode Variabel", style = "width: 15%;"),
+                         tags$th("Nama Variabel", style = "width: 25%;"),
+                         tags$th("Definisi Operasional", style = "width: 45%;"),
+                         tags$th("Tipe Data", style = "width: 10%;"),
+                         tags$th("Satuan", style = "width: 5%;")
+                       )
+                     ),
+                     tags$tbody(
+                       # Variabel Identifikasi
+                       tags$tr(
+                         tags$td(tags$strong("DISTRICTCODE"), style = "font-family: monospace;"),
+                         tags$td("Kode Kabupaten/Kota"),
+                         tags$td("Kode unik identifikasi wilayah administratif tingkat kabupaten/kota sesuai standar BPS"),
+                         tags$td(tags$span("Kategorikal", class = "badge", style = "background: #6366f1; color: white; padding: 4px 8px; border-radius: 4px;")),
+                         tags$td("-")
+                       ),
+                       
+                       # Variabel Demografis
+                       tags$tr(
+                         tags$td(tags$strong("CHILDREN"), style = "font-family: monospace;"),
+                         tags$td("Proporsi Anak Balita"),
+                         tags$td("Persentase penduduk berusia di bawah 5 tahun terhadap total populasi. Indikator kerentanan demografis karena ketergantungan tinggi pada orang dewasa."),
+                         tags$td(tags$span("Numerik", class = "badge", style = "background: #10b981; color: white; padding: 4px 8px; border-radius: 4px;")),
+                         tags$td("%")
+                       ),
+                       
+                       tags$tr(
+                         tags$td(tags$strong("FEMALE"), style = "font-family: monospace;"),
+                         tags$td("Proporsi Perempuan"),
+                         tags$td("Persentase penduduk perempuan terhadap total populasi. Mengukur komposisi gender yang dapat mempengaruhi kerentanan sosial-ekonomi."),
+                         tags$td(tags$span("Numerik", class = "badge", style = "background: #10b981; color: white; padding: 4px 8px; border-radius: 4px;")),
+                         tags$td("%")
+                       ),
+                       
+                       tags$tr(
+                         tags$td(tags$strong("ELDERLY"), style = "font-family: monospace;"),
+                         tags$td("Proporsi Lansia"),
+                         tags$td("Persentase penduduk berusia 65 tahun ke atas. Indikator dependency ratio dan kebutuhan layanan kesehatan khusus."),
+                         tags$td(tags$span("Numerik", class = "badge", style = "background: #10b981; color: white; padding: 4px 8px; border-radius: 4px;")),
+                         tags$td("%")
+                       ),
+                       
+                       tags$tr(
+                         tags$td(tags$strong("FHEAD"), style = "font-family: monospace;"),
+                         tags$td("KRT Perempuan"),
+                         tags$td("Persentase rumah tangga dengan kepala rumah tangga (KRT) perempuan. Indikator struktur keluarga dan potensi kerentanan ekonomi."),
+                         tags$td(tags$span("Numerik", class = "badge", style = "background: #10b981; color: white; padding: 4px 8px; border-radius: 4px;")),
+                         tags$td("%")
+                       ),
+                       
+                       tags$tr(
+                         tags$td(tags$strong("FAMILYSIZE"), style = "font-family: monospace;"),
+                         tags$td("Ukuran Keluarga"),
+                         tags$td("Rata-rata jumlah anggota per rumah tangga. Mengukur beban ekonomi dan kepadatan hunian yang dapat mempengaruhi kesejahteraan."),
+                         tags$td(tags$span("Numerik", class = "badge", style = "background: #10b981; color: white; padding: 4px 8px; border-radius: 4px;")),
+                         tags$td("Orang")
+                       ),
+                       
+                       # Variabel Sosial-Ekonomi
+                       tags$tr(
+                         tags$td(tags$strong("LOWEDU"), style = "font-family: monospace;"),
+                         tags$td("Pendidikan Rendah"),
+                         tags$td("Persentase penduduk usia 15+ dengan pendidikan tertinggi SD ke bawah. Indikator kapasitas sumber daya manusia dan akses terhadap informasi."),
+                         tags$td(tags$span("Numerik", class = "badge", style = "background: #10b981; color: white; padding: 4px 8px; border-radius: 4px;")),
+                         tags$td("%")
+                       ),
+                       
+                       tags$tr(
+                         tags$td(tags$strong("POVERTY"), style = "font-family: monospace;"),
+                         tags$td("Tingkat Kemiskinan"),
+                         tags$td("Persentase penduduk dengan pengeluaran per kapita di bawah garis kemiskinan. Indikator utama kerentanan ekonomi."),
+                         tags$td(tags$span("Numerik", class = "badge", style = "background: #10b981; color: white; padding: 4px 8px; border-radius: 4px;")),
+                         tags$td("%")
+                       ),
+                       
+                       tags$tr(
+                         tags$td(tags$strong("ILLITERATE"), style = "font-family: monospace;"),
+                         tags$td("Buta Huruf"),
+                         tags$td("Persentase penduduk usia 15+ yang tidak dapat membaca dan menulis. Indikator akses terhadap pendidikan dasar dan informasi."),
+                         tags$td(tags$span("Numerik", class = "badge", style = "background: #10b981; color: white; padding: 4px 8px; border-radius: 4px;")),
+                         tags$td("%")
+                       ),
+                       
+                       tags$tr(
+                         tags$td(tags$strong("NOTRAINING"), style = "font-family: monospace;"),
+                         tags$td("Tanpa Pelatihan Vokasi"),
+                         tags$td("Persentase penduduk usia produktif yang tidak pernah mengikuti pelatihan keterampilan. Indikator kapasitas adaptasi ekonomi."),
+                         tags$td(tags$span("Numerik", class = "badge", style = "background: #10b981; color: white; padding: 4px 8px; border-radius: 4px;")),
+                         tags$td("%")
+                       ),
+                       
+                       tags$tr(
+                         tags$td(tags$strong("GROWTH"), style = "font-family: monospace;"),
+                         tags$td("Pertumbuhan Penduduk"),
+                         tags$td("Laju pertumbuhan penduduk tahunan. Mengukur dinamika demografis dan tekanan terhadap sumber daya dan infrastruktur."),
+                         tags$td(tags$span("Numerik", class = "badge", style = "background: #10b981; color: white; padding: 4px 8px; border-radius: 4px;")),
+                         tags$td("%")
+                       ),
+                       
+                       # Variabel Infrastruktur
+                       tags$tr(
+                         tags$td(tags$strong("NOELECTRIC"), style = "font-family: monospace;"),
+                         tags$td("Tanpa Akses Listrik"),
+                         tags$td("Persentase rumah tangga yang tidak memiliki akses listrik PLN. Indikator infrastruktur dasar dan kualitas hidup."),
+                         tags$td(tags$span("Numerik", class = "badge", style = "background: #10b981; color: white; padding: 4px 8px; border-radius: 4px;")),
+                         tags$td("%")
+                       ),
+                       
+                       tags$tr(
+                         tags$td(tags$strong("RENTED"), style = "font-family: monospace;"),
+                         tags$td("Rumah Sewa/Kontrak"),
+                         tags$td("Persentase rumah tangga yang tinggal di rumah sewa atau kontrak. Indikator stabilitas tempat tinggal dan aset kepemilikan."),
+                         tags$td(tags$span("Numerik", class = "badge", style = "background: #10b981; color: white; padding: 4px 8px; border-radius: 4px;")),
+                         tags$td("%")
+                       ),
+                       
+                       tags$tr(
+                         tags$td(tags$strong("NOSEWER"), style = "font-family: monospace;"),
+                         tags$td("Tanpa Sistem Sanitasi"),
+                         tags$td("Persentase rumah tangga tanpa akses sistem pembuangan limbah yang memadai. Indikator kesehatan lingkungan dan infrastruktur."),
+                         tags$td(tags$span("Numerik", class = "badge", style = "background: #10b981; color: white; padding: 4px 8px; border-radius: 4px;")),
+                         tags$td("%")
+                       ),
+                       
+                       tags$tr(
+                         tags$td(tags$strong("TAPWATER"), style = "font-family: monospace;"),
+                         tags$td("Akses Air Bersih"),
+                         tags$td("Persentase rumah tangga dengan akses air bersih dari PDAM atau sumber terlindungi. Indikator infrastruktur dasar dan kesehatan."),
+                         tags$td(tags$span("Numerik", class = "badge", style = "background: #10b981; color: white; padding: 4px 8px; border-radius: 4px;")),
+                         tags$td("%")
+                       ),
+                       
+                       tags$tr(
+                         tags$td(tags$strong("DPHONE"), style = "font-family: monospace;"),
+                         tags$td("Akses Komunikasi"),
+                         tags$td("Persentase rumah tangga dengan akses telepon atau komunikasi. Indikator konektivitas dan akses informasi dalam situasi darurat."),
+                         tags$td(tags$span("Numerik", class = "badge", style = "background: #10b981; color: white; padding: 4px 8px; border-radius: 4px;")),
+                         tags$td("%")
+                       ),
+                       
+                       # Indeks Komposit
+                       tags$tr(
+                         tags$td(tags$strong("SOVI"), style = "font-family: monospace;"),
+                         tags$td("Social Vulnerability Index"),
+                         tags$td("Indeks komposit kerentanan sosial yang dihitung dari kombinasi weighted semua indikator. Nilai tinggi = kerentanan tinggi."),
+                         tags$td(tags$span("Indeks", class = "badge", style = "background: #f59e0b; color: white; padding: 4px 8px; border-radius: 4px;")),
+                         tags$td("Index")
+                       )
+                     )
+                   )
+                 )
+          )
+        ),
+        
+        # Metodologi Section
+        fluidRow(
+          column(12,
+                 div(class = "interpretation-box",
+                     style = "margin-top: 32px;",
+                     h4("📋 Catatan Metodologis", style = "color: #00809D; margin-bottom: 20px;"),
+                     tags$ul(
+                       tags$li(strong("Standardisasi Data:"), " Semua variabel numerik telah dinormalisasi untuk komparabilitas"),
+                       tags$li(strong("Missing Values:"), " Telah ditangani menggunakan metode imputasi yang sesuai"),
+                       tags$li(strong("Validasi:"), " Dataset telah divalidasi sesuai standar BPS dan publikasi ilmiah"),
+                       tags$li(strong("Update:"), " Data menggunakan periode terbaru yang tersedia dari sumber resmi")
+                     ),
+                     p(style = "margin-top: 20px; font-style: italic;",
+                       "Sumber: Cutter, S.L., et al. (2021). Social vulnerability index for Indonesia. Data in Brief, 39, 107618. DOI: 10.1016/j.dib.2021.107618")
+                 )
+          )
+        ),
+        
         # Footer Information
         fluidRow(
           column(12,
@@ -1572,6 +1756,236 @@ ui <- dashboardPage(
                             style = "margin: 0; opacity: 0.8; font-size: 1.5rem;")
                    )
                  )
+          )
+        )
+      ),
+      
+      # USER GUIDE TAB
+      tabItem(
+        tabName = "user_guide",
+        fluidRow(
+          box(
+            title = tagList(icon("book-open"), "User Guide AXIS Dashboard"), 
+            status = "primary", 
+            solidHeader = TRUE, 
+            width = 12,
+            
+            # Hero Section User Guide
+            div(style = "background: linear-gradient(135deg, #00809D 0%, #006B85 100%); 
+                  border-radius: 20px; 
+                  padding: 40px; 
+                  margin-bottom: 40px; 
+                  color: white; 
+                  text-align: center;",
+                h2("Panduan Lengkap Penggunaan Dashboard", style = "margin-bottom: 20px; font-weight: 700;"),
+                p("Panduan komprehensif untuk menggunakan semua fitur analisis statistik dalam AXIS Dashboard", 
+                  style = "font-size: 1.2rem; opacity: 0.9; margin: 0;")
+            ),
+            
+            
+            # Section 1: Getting Started
+            div(class = "feature-item", id = "getting-started",
+                h3("🎯 Memulai Analisis", style = "color: #00809D;"),
+                
+                h4("1. Persiapan Data"),
+                div(style = "margin-left: 0;",
+                    tags$ul(style = "margin-left: 0; padding-left: 20px;",
+                            tags$li(strong("511 observasi"), " - Kabupaten/Kota di Indonesia"),
+                            tags$li(strong("17 variabel"), " - Indikator kerentanan sosial"),
+                            tags$li(strong("Tipe data"), " - Numerik (kontinyu) dan kategorikal"),
+                            tags$li(strong("Missing values"), " - Perlu diperiksa sebelum analisis")
+                    )
+                ),
+                
+                h4("2. Workflow Analisis yang Direkomendasikan"),
+                tags$ol(style = "margin-left: 0; padding-left: 20px;",
+                        tags$li(strong("Load Data"), " → Memuat dataset dari repository"),
+                        tags$li(strong("Eksplorasi Awal"), " → Statistik deskriptif dan visualisasi"),
+                        tags$li(strong("Uji Asumsi"), " → Normalitas dan homogenitas"),
+                        tags$li(strong("Analisis Inferensial"), " → Uji hipotesis sesuai tujuan"),
+                        tags$li(strong("Interpretasi"), " → Kesimpulan berbasis bukti statistik")
+                )
+            ),
+            
+            
+            # Section 2: Data Management
+            div(class = "feature-item", id = "data-management",
+                h3("📊 Manajemen Data", style = "color: #00809D;"),
+                
+                h4("Load Dataset"),
+                p("Klik tombol 'LOAD SOVI DATASET' untuk memuat data dari repository GitHub. Dataset akan otomatis ter-load dengan struktur yang sudah divalidasi."),
+                
+                h4("Transformasi Data"),
+                tags$ul(
+                  tags$li(strong("Log Natural"), " - Untuk data skewed positif"),
+                  tags$li(strong("Log10"), " - Alternatif log dengan base 10"),
+                  tags$li(strong("Square Root"), " - Untuk data dengan varians tidak konstan"),
+                  tags$li(strong("Box-Cox"), " - Transformasi optimal otomatis"),
+                  tags$li(strong("Square"), " - Untuk hubungan kuadratik")
+                ),
+                
+                div(class = "interpretation-box",
+                    h5("⚠️ Catatan Penting Transformasi"),
+                    p("Transformasi log dan sqrt tidak dapat diterapkan pada nilai negatif atau nol. Box-Cox memerlukan semua nilai positif. Selalu periksa distribusi data sebelum memilih transformasi.")
+                ),
+                
+                h4("Kategorisasi Variabel"),
+                tags$ul(
+                  tags$li(strong("Quantile"), " - Pembagian berdasarkan kuartil (25%, 50%, 75%)"),
+                  tags$li(strong("Equal Width"), " - Interval yang sama lebar"),
+                  tags$li(strong("Custom"), " - Threshold yang ditentukan pengguna")
+                )
+            ),
+            
+            # Section 3: Exploratory Data Analysis
+            div(class = "feature-item", id = "exploration",
+                h3("🔍 Eksplorasi Data", style = "color: #00809D;"),
+                
+                h4("Visualisasi Data"),
+                tags$ul(
+                  tags$li(strong("Histogram"), " - Distribusi frekuensi dan bentuk distribusi"),
+                  tags$li(strong("Boxplot"), " - Median, kuartil, dan deteksi outlier"),
+                  tags$li(strong("Density Plot"), " - Kurva densitas probabilitas"),
+                  tags$li(strong("Q-Q Plot"), " - Uji normalitas secara visual"),
+                  tags$li(strong("Bar Chart"), " - Untuk data kategorikal")
+                ),
+                
+                h4("Statistik Deskriptif"),
+                p("Dashboard menyediakan statistik komprehensif:"),
+                tags$ul(
+                  tags$li(strong("Tendensi Sentral"), " - Mean, median, mode"),
+                  tags$li(strong("Dispersi"), " - SD, variance, range, IQR"),
+                  tags$li(strong("Bentuk Distribusi"), " - Skewness, kurtosis"),
+                  tags$li(strong("Outlier Detection"), " - Metode IQR")
+                ),
+                
+                div(class = "interpretation-box",
+                    h5("📊 Interpretasi Statistik Deskriptif"),
+                    tags$ul(
+                      tags$li("CV < 15%: Variabilitas rendah"),
+                      tags$li("|Skew| < 0.5: Distribusi simetris"),
+                      tags$li("Kurtosis ≈ 3: Distribusi normal"),
+                      tags$li("Mean ≈ Median: Indikasi distribusi simetris")
+                    )
+                )
+            ),
+            
+            # Section 4: Statistical Tests
+            div(class = "feature-item", id = "statistical-tests",
+                h3("📈 Uji Statistik", style = "color: #00809D;"),
+                
+                h4("Uji Asumsi"),
+                tags$ul(
+                  tags$li(strong("Uji Normalitas"), " - Shapiro-Wilk, Kolmogorov-Smirnov, Anderson-Darling"),
+                  tags$li(strong("Uji Homogenitas"), " - Levene, Bartlett, Fligner-Killeen")
+                ),
+                
+                h4("Uji Beda Rata-rata"),
+                tags$ul(
+                  tags$li(strong("One Sample t-test"), " - Membandingkan mean sampel dengan nilai hipotesis"),
+                  tags$li(strong("Two Sample t-test"), " - Membandingkan mean dua kelompok independen"),
+                  tags$li(strong("Paired t-test"), " - Membandingkan mean dua pengukuran berpasangan")
+                ),
+                
+                h4("Uji Proporsi & Varians"),
+                tags$ul(
+                  tags$li(strong("One/Two Sample Proportion"), " - Uji proporsi kategori"),
+                  tags$li(strong("F-test"), " - Uji kesamaan varians dua kelompok"),
+                  tags$li(strong("Chi-square test"), " - Uji varians satu sampel")
+                ),
+                
+                div(class = "interpretation-box",
+                    h5("🎯 Guidelines Interpretasi"),
+                    tags$ul(
+                      tags$li("p-value < 0.05: Signifikan secara statistik"),
+                      tags$li("Effect size: Small (0.2), Medium (0.5), Large (0.8)"),
+                      tags$li("Confidence Interval: Rentang estimasi parameter"),
+                      tags$li("Power Analysis: Kemampuan mendeteksi efek yang ada")
+                    )
+                )
+            ),
+            
+            # Section 5: Advanced Analysis
+            div(class = "feature-item", id = "advanced-analysis",
+                h3("🎯 Analisis Lanjutan", style = "color: #00809D;"),
+                
+                h4("ANOVA (Analysis of Variance)"),
+                tags$ul(
+                  tags$li(strong("One-Way ANOVA"), " - Membandingkan mean 3+ kelompok"),
+                  tags$li(strong("Two-Way ANOVA"), " - Efek dua faktor dan interaksi"),
+                  tags$li(strong("Post-hoc Tests"), " - Tukey HSD untuk perbandingan berganda"),
+                  tags$li(strong("Effect Size"), " - Eta-squared untuk ukuran efek")
+                ),
+                
+                h4("Regresi Linear Berganda"),
+                tags$ul(
+                  tags$li(strong("Model Specification"), " - Pemilihan variabel dependen dan independen"),
+                  tags$li(strong("Diagnostic Tests"), " - Uji asumsi regresi"),
+                  tags$li(strong("Multicollinearity"), " - VIF untuk deteksi kolinearitas"),
+                  tags$li(strong("Model Validation"), " - R², AIC, BIC untuk evaluasi model")
+                ),
+                
+                h4("Analisis Spasial"),
+                tags$ul(
+                  tags$li(strong("Pemetaan Interaktif"), " - Visualisasi distribusi geografis"),
+                  tags$li(strong("Moran's I"), " - Uji autokorelasi spasial"),
+                  tags$li(strong("Spatial Weights"), " - Matriks kedekatan geografis"),
+                  tags$li(strong("Hotspot Analysis"), " - Identifikasi klaster spasial")
+                ),
+                
+                div(class = "interpretation-box",
+                    h5("🔬 Metodologi Statistik"),
+                    p("Semua analisis mengikuti standar APA untuk pelaporan statistik dengan α = 0.05, CI = 95%, dan effect size reporting. Asumsi model selalu diverifikasi sebelum interpretasi.")
+                )
+            ),
+            
+            # Section 6: Best Practices
+            div(class = "feature-item",
+                h3("✅ Best Practices", style = "color: #00809D;"),
+                
+                h4("Sebelum Analisis"),
+                tags$ul(
+                  tags$li("Periksa missing data dan outliers"),
+                  tags$li("Validasi asumsi distribusi"),
+                  tags$li("Tentukan tujuan analisis yang jelas"),
+                  tags$li("Pilih uji statistik yang sesuai")
+                ),
+                
+                h4("Selama Analisis"),
+                tags$ul(
+                  tags$li("Dokumentasikan setiap langkah"),
+                  tags$li("Periksa diagnostic plots"),
+                  tags$li("Validasi hasil dengan multiple methods"),
+                  tags$li("Perhatikan practical significance vs statistical significance")
+                ),
+                
+                h4("Setelah Analisis"),
+                tags$ul(
+                  tags$li("Interpretasi dalam konteks domain"),
+                  tags$li("Diskusikan limitasi dan asumsi"),
+                  tags$li("Berikan rekomendasi actionable"),
+                  tags$li("Generate laporan komprehensif")
+                )
+            ),
+            
+            # Section 7: Troubleshooting
+            div(class = "feature-item",
+                h3("🔧 Troubleshooting", style = "color: #00809D;"),
+                
+                h4("Masalah Umum dan Solusi"),
+                tags$ul(
+                  tags$li(strong("Data tidak ter-load"), " - Periksa koneksi internet dan coba reload"),
+                  tags$li(strong("Transformasi gagal"), " - Pastikan tidak ada nilai negatif/nol untuk log/sqrt"),
+                  tags$li(strong("Uji normalitas gagal"), " - Coba transformasi atau gunakan uji non-parametrik"),
+                  tags$li(strong("Multikolinearitas tinggi"), " - Hapus variabel dengan VIF > 10"),
+                  tags$li(strong("Residual tidak normal"), " - Gunakan robust regression atau transformasi")
+                ),
+                
+                div(class = "interpretation-box",
+                    h5("💡 Tips Profesional"),
+                    p("Selalu mulai dengan eksplorasi data sebelum analisis inferensial. Gunakan visualisasi untuk memahami pola data. Jangan hanya fokus pada p-value, perhatikan juga effect size dan confidence interval.")
+                )
+            )
           )
         )
       ),
